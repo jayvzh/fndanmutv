@@ -13,6 +13,8 @@ services:
     container_name: fn-danmutv
     restart: unless-stopped
     network_mode: host
+    ports:
+      - 8017:8000
     environment:
       - DANMUTV_TOKEN=fn-danmutv
       - DANMUTV_LOG_LEVEL=INFO
