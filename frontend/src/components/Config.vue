@@ -15,6 +15,39 @@
         <v-spacer></v-spacer>
         <v-icon icon="mdi-cog" color="primary" size="24" class="mr-2" />
         <div class="topbar-title">DanmuTV 配置</div>
+        <v-spacer></v-spacer>
+        <v-btn
+          color="secondary"
+          variant="text"
+          @click="resetConfigToFetched"
+          :disabled="!initialConfigLoaded || saving"
+          prepend-icon="mdi-restore"
+          size="small"
+          class="mr-1"
+        >
+          重置
+        </v-btn>
+        <v-btn
+          color="primary"
+          variant="tonal"
+          @click="saveFullConfig"
+          :loading="saving"
+          :disabled="!isFormValid || saving"
+          prepend-icon="mdi-content-save"
+          size="small"
+          class="mr-2"
+        >
+          保存配置
+        </v-btn>
+        <v-btn
+          color="grey"
+          variant="text"
+          @click="emit('logout')"
+          prepend-icon="mdi-logout"
+          size="small"
+        >
+          登出
+        </v-btn>
       </div>
 
       <v-divider></v-divider>
@@ -39,110 +72,16 @@
               <v-row>
                 <v-col cols="12" md="6">
                   <div class="setting-item d-flex align-center py-3">
-                    <v-icon icon="mdi-power" :color="editableConfig.enable ? 'success' : 'grey'" class="mr-3"></v-icon>
-                    <div class="setting-content flex-grow-1">
-                      <div class="d-flex justify-space-between align-center">
-                        <div>
-                          <div class="setting-label">启用插件</div>
-                          <div class="setting-desc text-grey">是否启用弹幕刮削功能</div>
-                        </div>
-                        <v-switch
-                          v-model="editableConfig.enable"
-                          color="primary"
-                          inset
-                          :disabled="saving"
-                          hide-details
-                        ></v-switch>
-                      </div>
-                    </div>
-                  </div>
-                </v-col>
-                <v-col cols="12" md="6">
-                  <div class="setting-item d-flex align-center py-3">
                     <v-icon icon="mdi-auto-fix" :color="editableConfig.auto_scrape ? 'success' : 'grey'" class="mr-3"></v-icon>
                     <div class="setting-content flex-grow-1">
                       <div class="d-flex justify-space-between align-center">
                         <div>
-                          <div class="setting-label">入库自动刮削</div>
-                          <div class="setting-desc text-grey">是否在媒体入库时自动刮削弹幕</div>
+                          <div class="setting-label">启用媒体库自动刮削</div>
+                          <div class="setting-desc text-grey">按间隔定时扫描媒体库；关闭则仅支持手动刮削</div>
                         </div>
                         <v-switch
                           v-model="editableConfig.auto_scrape"
                           color="success"
-                          inset
-                          :disabled="saving"
-                          hide-details
-                        ></v-switch>
-                      </div>
-                    </div>
-                  </div>
-                </v-col>
-                <v-col cols="12" md="6">
-                  <div class="setting-item d-flex align-center py-3">
-                    <v-icon icon="mdi-play-speed" :color="editableConfig.auto_scrape_on_start ? 'success' : 'grey'" class="mr-3"></v-icon>
-                    <div class="setting-content flex-grow-1">
-                      <div class="d-flex justify-space-between align-center">
-                        <div>
-                          <div class="setting-label">启动时立即扫描一次</div>
-                          <div class="setting-desc text-grey">应用启动后立即执行一次自动扫描</div>
-                        </div>
-                        <v-switch
-                          v-model="editableConfig.auto_scrape_on_start"
-                          color="success"
-                          inset
-                          :disabled="saving"
-                          hide-details
-                        ></v-switch>
-                      </div>
-                    </div>
-                  </div>
-                </v-col>
-                <v-col cols="12" md="6">
-                  <v-text-field
-                    v-model.number="editableConfig.auto_scrape_interval"
-                    label="自动扫描间隔(秒)"
-                    type="number"
-                    variant="outlined"
-                    density="comfortable"
-                    :min="0"
-                    hint="设为 0 可禁用定时扫描"
-                    persistent-hint
-                    prepend-inner-icon="mdi-timer"
-                    :disabled="saving"
-                  ></v-text-field>
-                </v-col>
-                <v-col cols="12" md="6">
-                  <div class="setting-item d-flex align-center py-3">
-                    <v-icon icon="mdi-repeat" :color="editableConfig.enable_retry_task ? 'warning' : 'grey'" class="mr-3"></v-icon>
-                    <div class="setting-content flex-grow-1">
-                      <div class="d-flex justify-space-between align-center">
-                        <div>
-                          <div class="setting-label">启用重试任务</div>
-                          <div class="setting-desc text-grey">弹幕数量不足时自动加入重试列表</div>
-                        </div>
-                        <v-switch
-                          v-model="editableConfig.enable_retry_task"
-                          color="warning"
-                          inset
-                          :disabled="saving"
-                          hide-details
-                        ></v-switch>
-                      </div>
-                    </div>
-                  </div>
-                </v-col>
-                <v-col cols="12" md="6">
-                  <div class="setting-item d-flex align-center py-3">
-                    <v-icon icon="mdi-history" :color="editableConfig.enable_history_details ? 'info' : 'grey'" class="mr-3"></v-icon>
-                    <div class="setting-content flex-grow-1">
-                      <div class="d-flex justify-space-between align-center">
-                        <div>
-                          <div class="setting-label">记录历史详情</div>
-                          <div class="setting-desc text-grey">记录批量刮削时每个文件的处理详情</div>
-                        </div>
-                        <v-switch
-                          v-model="editableConfig.enable_history_details"
-                          color="info"
                           inset
                           :disabled="saving"
                           hide-details
@@ -194,6 +133,75 @@
                     </div>
                   </div>
                 </v-col>
+                <v-col cols="12" md="6">
+                  <v-select
+                    v-model="editableConfig.auto_scrape_mode"
+                    :items="[
+                      { title: '增量扫描（跳过已有弹幕）', value: 'incremental' },
+                      { title: '完整扫描（重新刮削全部）', value: 'full' },
+                    ]"
+                    label="自动刮削模式"
+                    variant="outlined"
+                    density="comfortable"
+                    prepend-inner-icon="mdi-file-search"
+                    :disabled="saving || !editableConfig.auto_scrape"
+                    hide-details="auto"
+                  ></v-select>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field
+                    v-model.number="editableConfig.auto_scrape_interval"
+                    label="自动扫描间隔(秒)"
+                    type="number"
+                    variant="outlined"
+                    density="comfortable"
+                    :min="60"
+                    hint="自动刮削开启后生效，最小 60 秒"
+                    persistent-hint
+                    prepend-inner-icon="mdi-timer"
+                    :disabled="saving || !editableConfig.auto_scrape"
+                  ></v-text-field>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <div class="setting-item d-flex align-center py-3">
+                    <v-icon icon="mdi-history" :color="editableConfig.enable_history_details ? 'info' : 'grey'" class="mr-3"></v-icon>
+                    <div class="setting-content flex-grow-1">
+                      <div class="d-flex justify-space-between align-center">
+                        <div>
+                          <div class="setting-label">记录历史详情</div>
+                          <div class="setting-desc text-grey">记录批量刮削时每个文件的处理详情</div>
+                        </div>
+                        <v-switch
+                          v-model="editableConfig.enable_history_details"
+                          color="info"
+                          inset
+                          :disabled="saving"
+                          hide-details
+                        ></v-switch>
+                      </div>
+                    </div>
+                  </div>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <div class="setting-item d-flex align-center py-3">
+                    <v-icon icon="mdi-repeat" :color="editableConfig.enable_retry_task ? 'warning' : 'grey'" class="mr-3"></v-icon>
+                    <div class="setting-content flex-grow-1">
+                      <div class="d-flex justify-space-between align-center">
+                        <div>
+                          <div class="setting-label">启用重试任务</div>
+                          <div class="setting-desc text-grey">弹幕数量不足时自动加入重试列表</div>
+                        </div>
+                        <v-switch
+                          v-model="editableConfig.enable_retry_task"
+                          color="warning"
+                          inset
+                          :disabled="saving"
+                          hide-details
+                        ></v-switch>
+                      </div>
+                    </div>
+                  </div>
+                </v-col>
                 <v-col cols="12">
                   <div class="d-flex align-center flex-row ga-2">
                     <v-text-field
@@ -229,9 +237,44 @@
 
           <!-- 弹幕参数设置 -->
           <v-card class="section-card mb-5" elevation="0">
-            <div class="section-title d-flex align-center">
+            <div class="section-title d-flex align-center flex-wrap ga-2">
               <v-icon icon="mdi-video" class="mr-2" color="primary" />
-              <span>弹幕参数设置</span>
+              <span class="mr-4">弹幕参数设置</span>
+              <div class="d-flex align-center ga-2 ml-auto flex-wrap" style="max-width: 100%;">
+                <v-select
+                  v-model="activePreset"
+                  :items="presetOptions"
+                  item-title="name"
+                  item-value="id"
+                  label="参数方案"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  style="min-width: 160px; max-width: 220px;"
+                  :disabled="saving"
+                  @update:model-value="applyPreset"
+                ></v-select>
+                <v-btn
+                  icon="mdi-content-save-outline"
+                  size="small"
+                  variant="tonal"
+                  color="primary"
+                  :disabled="saving"
+                  @click="openSavePreset"
+                >
+                  <v-icon>mdi-content-save-outline</v-icon>
+                </v-btn>
+                <v-btn
+                  icon="mdi-delete-outline"
+                  size="small"
+                  variant="tonal"
+                  color="error"
+                  :disabled="saving || !canDeletePreset"
+                  @click="deletePreset"
+                >
+                  <v-icon>mdi-delete-outline</v-icon>
+                </v-btn>
+              </div>
             </div>
             <v-card-text class="pa-0 pt-4">
               <v-row>
@@ -456,7 +499,7 @@
           <v-card class="section-card mb-5" elevation="0">
             <div class="section-title d-flex align-center">
               <v-icon icon="mdi-folder" class="mr-2" color="primary" />
-              <span>手动控制媒体库路径</span>
+              <span>媒体库路径</span>
             </div>
             <v-card-text class="pa-0 pt-4">
               <v-textarea
@@ -474,23 +517,41 @@
           </v-card>
         </v-form>
       </v-card-text>
-
-      <v-divider></v-divider>
-
-      <v-card-actions class="px-6 py-4">
-        <v-spacer></v-spacer>
-        <v-btn color="secondary" variant="text" @click="resetConfigToFetched" :disabled="!initialConfigLoaded || saving" prepend-icon="mdi-restore">重置</v-btn>
-        <v-btn color="primary" :disabled="!isFormValid || saving" @click="saveFullConfig" :loading="saving" prepend-icon="mdi-content-save" variant="tonal">保存配置</v-btn>
-      </v-card-actions>
     </v-card>
+
+    <!-- 保存参数方案对话框 -->
+    <v-dialog v-model="presetDialog" max-width="420">
+      <v-card>
+        <v-card-title class="d-flex align-center">
+          <v-icon icon="mdi-content-save-outline" class="mr-2" color="primary" />
+          保存弹幕参数方案
+        </v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="presetName"
+            label="方案名称"
+            variant="outlined"
+            density="comfortable"
+            :rules="[v => !!v?.trim() || '请输入方案名称']"
+            autofocus
+            @keyup.enter="confirmSavePreset"
+          ></v-text-field>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="presetDialog = false">取消</v-btn>
+          <v-btn color="primary" variant="tonal" @click="confirmSavePreset">保存</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import api from '../api';
 
-const emit = defineEmits(['switch']);
+const emit = defineEmits(['switch', 'logout']);
 
 const form = ref(null);
 const isFormValid = ref(true);
@@ -501,28 +562,147 @@ const testingApi = ref(false);
 const apiTestResult = ref(null);
 const initialConfigLoaded = ref(false);
 
+// ── 弹幕参数方案（预设）──
+// 仅存储弹幕渲染相关字段，为前端本地偏好（localStorage），不写入后端配置
+const PRESET_FIELDS = [
+  'fontsize', 'screen_area', 'alpha', 'duration',
+  'enable_multi_layer', 'multi_layer_count',
+  'random_top_bottom', 'top_ratio', 'bottom_ratio',
+  'density', 'width_scale',
+];
+const PRESET_STORAGE_KEY = 'danmutv_danmu_presets';
+const ACTIVE_PRESET_KEY = 'danmutv_active_preset';
+const BUILTIN_DEFAULT_ID = 'default';
+
+const BUILTIN_DEFAULT_PARAMS = {
+  fontsize: 48,
+  screen_area: 'quarter',
+  alpha: 0.6,
+  duration: 14,
+  enable_multi_layer: true,
+  multi_layer_count: 2,
+  random_top_bottom: false,
+  top_ratio: 0,
+  bottom_ratio: 0,
+  density: 50,
+  width_scale: 1.2,
+};
+
+const presets = ref([]);
+const activePreset = ref(BUILTIN_DEFAULT_ID);
+const presetDialog = ref(false);
+const presetName = ref('');
+
+const presetOptions = computed(() => [
+  { id: BUILTIN_DEFAULT_ID, name: '默认方案', builtin: true },
+  ...presets.value.map((p) => ({ id: p.id, name: p.name, builtin: false })),
+]);
+
+const canDeletePreset = computed(
+  () => activePreset.value && activePreset.value !== BUILTIN_DEFAULT_ID
+);
+
+function loadPresets() {
+  try {
+    const raw = localStorage.getItem(PRESET_STORAGE_KEY);
+    presets.value = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(presets.value)) presets.value = [];
+  } catch {
+    presets.value = [];
+  }
+  const saved = localStorage.getItem(ACTIVE_PRESET_KEY);
+  const exists = saved === BUILTIN_DEFAULT_ID
+    || presets.value.some((p) => p.id === saved);
+  activePreset.value = exists ? saved : BUILTIN_DEFAULT_ID;
+}
+
+function persistPresets() {
+  localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(presets.value));
+}
+
+function currentDanmuParams() {
+  const params = {};
+  for (const key of PRESET_FIELDS) {
+    params[key] = editableConfig[key];
+  }
+  return params;
+}
+
+function applyParamsToForm(params) {
+  for (const key of PRESET_FIELDS) {
+    if (params[key] !== undefined) {
+      editableConfig[key] = params[key];
+    }
+  }
+}
+
+function applyPreset(id) {
+  if (!id) return;
+  localStorage.setItem(ACTIVE_PRESET_KEY, id);
+  if (id === BUILTIN_DEFAULT_ID) {
+    applyParamsToForm(BUILTIN_DEFAULT_PARAMS);
+    successMessage.value = '已应用「默认方案」';
+  } else {
+    const preset = presets.value.find((p) => p.id === id);
+    if (preset) {
+      applyParamsToForm(preset.params);
+      successMessage.value = `已应用方案「${preset.name}」`;
+    }
+  }
+  setTimeout(() => { successMessage.value = null; }, 2500);
+}
+
+function openSavePreset() {
+  presetName.value = '';
+  presetDialog.value = true;
+}
+
+function confirmSavePreset() {
+  const name = presetName.value?.trim();
+  if (!name) return;
+  const id = `preset_${Date.now()}`;
+  presets.value.push({ id, name, params: currentDanmuParams() });
+  persistPresets();
+  activePreset.value = id;
+  localStorage.setItem(ACTIVE_PRESET_KEY, id);
+  presetDialog.value = false;
+  successMessage.value = `已保存方案「${name}」`;
+  setTimeout(() => { successMessage.value = null; }, 2500);
+}
+
+function deletePreset() {
+  if (!canDeletePreset.value) return;
+  const id = activePreset.value;
+  presets.value = presets.value.filter((p) => p.id !== id);
+  persistPresets();
+  activePreset.value = BUILTIN_DEFAULT_ID;
+  localStorage.setItem(ACTIVE_PRESET_KEY, BUILTIN_DEFAULT_ID);
+  applyParamsToForm(BUILTIN_DEFAULT_PARAMS);
+  successMessage.value = '已删除该方案';
+  setTimeout(() => { successMessage.value = null; }, 2500);
+}
+
 const defaultConfig = () => ({
-  enable: false,
   width: 1920,
   height: 1080,
   fontsize: 48,
-  alpha: 0.7,
+  alpha: 0.6,
   duration: 14,
   path: '',
-  auto_scrape: true,
-  auto_scrape_on_start: false,
+  auto_scrape: false,
+  auto_scrape_mode: 'incremental',
   auto_scrape_interval: 3600,
   enable_retry_task: true,
   screen_area: 'quarter',
   enable_strm: true,
   danmu_api_url: 'http://danmu-api:9321',
-  enable_multi_layer: false,
+  enable_multi_layer: true,
   multi_layer_count: 2,
   random_top_bottom: false,
   top_ratio: 0,
   bottom_ratio: 0,
-  density: 100,
-  width_scale: 1.0,
+  density: 50,
+  width_scale: 1.2,
 });
 
 // Holds the config as fetched from server, used for reset
@@ -532,15 +712,14 @@ const serverFetchedConfig = reactive({});
 const editableConfig = reactive(defaultConfig());
 
 const toEditable = (data) => ({
-  enable: data?.enabled ?? false,
   width: data?.width ?? 1920,
   height: data?.height ?? 1080,
   fontsize: data?.fontsize ?? 48,
   alpha: data?.alpha ?? 0.7,
   duration: data?.duration ?? 14,
   path: data?.path ?? '',
-  auto_scrape: data?.auto_scrape ?? true,
-  auto_scrape_on_start: data?.auto_scrape_on_start ?? false,
+  auto_scrape: data?.auto_scrape ?? false,
+  auto_scrape_mode: data?.auto_scrape_mode ?? 'incremental',
   auto_scrape_interval: data?.auto_scrape_interval ?? 3600,
   enable_retry_task: data?.enable_retry_task ?? true,
   screen_area: data?.screen_area ?? 'quarter',
@@ -614,7 +793,6 @@ async function saveFullConfig() {
 
   try {
     const configToSave = {
-      enabled: editableConfig.enable,
       width: editableConfig.width,
       height: editableConfig.height,
       fontsize: editableConfig.fontsize,
@@ -622,7 +800,7 @@ async function saveFullConfig() {
       duration: editableConfig.duration,
       path: editableConfig.path,
       auto_scrape: editableConfig.auto_scrape,
-      auto_scrape_on_start: editableConfig.auto_scrape_on_start,
+      auto_scrape_mode: editableConfig.auto_scrape_mode,
       auto_scrape_interval: editableConfig.auto_scrape_interval,
       enable_retry_task: editableConfig.enable_retry_task,
       screen_area: editableConfig.screen_area,
@@ -671,6 +849,7 @@ function resetConfigToFetched() {
 }
 
 onMounted(() => {
+  loadPresets();
   loadInitialData();
 });
 </script>

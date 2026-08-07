@@ -422,7 +422,7 @@ const batchStarting = ref(false);
 let statusTimer = null;
 
 const status = reactive({
-  enabled: false
+  auto_scrape: false
 });
 
 const scrapingStatus = reactive({
@@ -508,12 +508,13 @@ function formatDuration(seconds) {
 
 async function getStatus() {
   try {
-    const data = await api.get('/status');
+    const res = await api.get('/status');
+    const data = res && res.success ? res.data : null;
     if (data) {
       Object.assign(status, {
-        enabled: data.enabled
+        auto_scrape: data.auto_scrape
       });
-      
+
       Object.assign(scrapingStatus, {
         running: data.running,
         total: data.total,
@@ -523,7 +524,7 @@ async function getStatus() {
         current_file: data.current_file,
         duration: data.duration
       });
-      
+
       running.value = data.running;
     }
   } catch (err) {
@@ -776,7 +777,10 @@ async function scrapeDirectory(path, recursive = false) {
 }
 
 function scrapeCurrentDirectory() {
-  scrapeDirectory(currentPath.value, false);
+  // 根层级时 currentPath 为空，实际路径在 directoryContent.path
+  const target = currentPath.value || directoryContent.value?.path;
+  if (!target) return;
+  scrapeDirectory(target, false);
 }
 
 async function cleanCurrentDirectorySubtitles() {
@@ -856,7 +860,16 @@ function startStatusPolling() {
     await getStatus();
     if (!scrapingStatus.running) {
       stopStatusPolling();
-      successMessage.value = `批量刮削完成：成功 ${scrapingStatus.success}，失败 ${scrapingStatus.failed}，共 ${scrapingStatus.total}`;
+      const { success, failed, total } = scrapingStatus;
+      successMessage.value = `批量刮削完成：成功 ${success}，失败 ${failed}，共 ${total}`;
+      // 全局通知：不论是否切换页面都弹出
+      window.dispatchEvent(new CustomEvent('app:notify', {
+        detail: {
+          success: failed === 0,
+          title: failed === 0 ? '批量刮削完成' : '批量刮削完成（存在失败）',
+          text: `共 ${total} 个文件，成功 ${success}，失败 ${failed}`,
+        },
+      }));
       await navigateToPath(currentPath.value);
       emit('refresh');
     }

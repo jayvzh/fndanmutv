@@ -50,3 +50,5 @@ export default {
   get: (url, params) => api.get(url, toAxiosConfig(params)),
   post: (url, data) => api.post(url, data),
 }
+
+export { api as axiosInstance }

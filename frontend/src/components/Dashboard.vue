@@ -10,12 +10,12 @@
         <v-row>
           <v-col cols="12" sm="4">
             <div class="status-item d-flex align-center py-3">
-              <v-avatar :color="enabled ? 'success' : 'error'" size="44" class="mr-4">
-                <v-icon :icon="enabled ? 'mdi-check' : 'mdi-close'" size="24" color="white"></v-icon>
+              <v-avatar :color="autoScrape ? 'success' : 'orange-lighten-3'" size="44" class="mr-4">
+                <v-icon :icon="autoScrape ? 'mdi-check' : 'mdi-pause'" size="24" color="white"></v-icon>
               </v-avatar>
               <div class="status-content flex-grow-1">
-                <div class="status-label">插件启用</div>
-                <div class="status-value" :class="enabled ? 'text-success' : 'text-error'">{{ enabled ? '已启用' : '未启用' }}</div>
+                <div class="status-label">自动刮削</div>
+                <div class="status-value" :class="autoScrape ? 'text-success' : 'text-orange-darken-2'">{{ autoScrape ? '已开启' : '手动模式' }}</div>
               </div>
             </div>
           </v-col>
@@ -120,7 +120,7 @@
         </v-row>
         <v-row v-if="lastRun" class="mt-2">
           <v-col cols="12">
-            <v-btn color="primary" variant="tonal" @click="triggerRetry" :disabled="!stats.retry_tasks_count" prepend-icon="mdi-refresh">
+            <v-btn color="orange-lighten-2" variant="tonal" @click="triggerRetry" :class="{ 'pointer-events-none': !stats.retry_tasks_count }" prepend-icon="mdi-refresh">
               立即重试 ({{ stats.retry_tasks_count }})
             </v-btn>
           </v-col>
@@ -158,7 +158,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import api from '../api'
 
-const enabled = ref(false)
+const autoScrape = ref(false)
 const apiConnected = ref(false)
 const apiMessage = ref('')
 const mediaLibraryAccessible = ref(false)
@@ -175,7 +175,7 @@ const fetchStatus = async () => {
     const data = await api.get('/full_status');
     if (data && data.success) {
       const result = data.data
-      enabled.value = result.enabled
+      autoScrape.value = result.auto_scrape
       apiConnected.value = result.api_connected
       apiMessage.value = result.api_message
       mediaLibraryAccessible.value = result.media_library_accessible

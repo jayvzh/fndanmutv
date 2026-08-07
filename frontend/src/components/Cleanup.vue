@@ -6,7 +6,6 @@
     </div>
 
     <v-alert type="info" variant="tonal" class="mb-4">
-      <v-icon icon="mdi-information" class="mr-2"></v-icon>
       扫描并清理原视频已删除的残留弹幕字幕文件（.danmu.ass）
     </v-alert>
 

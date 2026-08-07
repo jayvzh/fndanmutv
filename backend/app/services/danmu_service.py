@@ -47,6 +47,7 @@ class DanmuService:
 
         self._inflight_files: set = set()
         self._scrape_aborted = False
+        self._force_regenerate = False
         self._scrape_progress: dict[str, Any] = {
             "running": False,
             "total": 0,
@@ -68,7 +69,7 @@ class DanmuService:
 
     def _load_all(self) -> None:
         db_cfg = database.load_config_json()
-        self._config = {**AppConfig.default_config(), **(db_cfg or {})}
+        self._config = self._merge_config(db_cfg or {})
         self._apply_runtime_config(self._config)
 
         self._retry_tasks = self._load_retry_tasks_from_db()
@@ -88,8 +89,14 @@ class DanmuService:
 
     def reload(self) -> None:
         db_cfg = database.load_config_json()
-        self._config = {**AppConfig.default_config(), **(db_cfg or {})}
+        self._config = self._merge_config(db_cfg or {})
         self._apply_runtime_config(self._config)
+
+    def _merge_config(self, db_cfg: dict) -> dict:
+        merged = {**AppConfig.default_config(), **(db_cfg or {})}
+        for key in self.DEPRECATED_KEYS:
+            merged.pop(key, None)
+        return merged
 
     # ---------- helpers ----------
     @staticmethod
@@ -109,10 +116,15 @@ class DanmuService:
     def get_config(self) -> dict:
         return dict(self._config)
 
+    # 已废弃的 MoviePilot 时代配置键，加载/保存时剔除
+    DEPRECATED_KEYS = ("enabled",)
+
     def save_config(self, cfg: dict) -> None:
         if not isinstance(cfg, dict):
             raise ValueError("config 必须是 dict")
         merged = {**AppConfig.default_config(), **self._config, **cfg}
+        for key in self.DEPRECATED_KEYS:
+            merged.pop(key, None)
         # 类型修正
         try:
             merged["multi_layer_count"] = int(merged.get("multi_layer_count", 2))
@@ -128,6 +140,7 @@ class DanmuService:
             merged["alpha"] = 0.7
 
         self._config = merged
+        # 兼容旧配置：enabled 已废弃（工具默认启用），仅用于把旧的 auto_scrape=true 迁移
         database.save_config_json(merged)
         self._apply_runtime_config(merged)
         if self._scheduler is not None:
@@ -135,7 +148,10 @@ class DanmuService:
                 self._scheduler.reschedule(merged)
             except Exception as e:
                 logger.warning(f"重调度失败: {e}")
-        logger.info(f"配置已保存，enabled={merged.get('enabled')}")
+        logger.info(
+            f"配置已保存，auto_scrape={merged.get('auto_scrape')} "
+            f"mode={merged.get('auto_scrape_mode')}"
+        )
 
     # ---------- danmu count ----------
     def count_danmu_lines_cached(self, ass_file: str,
@@ -691,7 +707,8 @@ class DanmuService:
 
         try:
             ass_file = f"{os.path.splitext(file_path)[0]}.danmu.chs.ass"
-            if os.path.exists(ass_file):
+            force = getattr(self, "_force_regenerate", False)
+            if os.path.exists(ass_file) and not force:
                 count = self.count_danmu_lines_cached(ass_file)
                 if count >= self.MIN_DANMU_COUNT:
                     logger.info(f"本地已有弹幕，跳过API: {ass_file} ({count}条)")
@@ -703,6 +720,8 @@ class DanmuService:
                         SubtitleProcessor.combine_sub_ass(ass_file, sub2, file_path)
                     return ass_file
                 logger.info(f"本地弹幕数量不足({count})，重新获取: {ass_file}")
+            elif force and os.path.exists(ass_file):
+                logger.info(f"全量扫描模式，强制重新获取弹幕: {ass_file}")
 
             result = generator(
                 file_path,
@@ -813,7 +832,8 @@ class DanmuService:
                 kept.append(f)
         return kept, skipped
 
-    def scrape_directory(self, directory_path: str, recursive: bool = False) -> dict:
+    def scrape_directory(self, directory_path: str, recursive: bool = False,
+                         force: bool = False) -> dict:
         if not directory_path:
             raise ValueError("缺少目录路径")
         if not os.path.isdir(directory_path):
@@ -830,16 +850,21 @@ class DanmuService:
         if not files:
             raise ValueError("目录下没有支持的媒体文件")
         total_before = len(files)
-        files, skipped = self._filter_unscraped(files)
-        if not files:
-            raise ValueError(f"所有 {total_before} 个文件已有有效弹幕，无需刮削")
+        skipped = 0
+        if not force:
+            files, skipped = self._filter_unscraped(files)
+            if not files:
+                raise ValueError(f"所有 {total_before} 个文件已有有效弹幕，无需刮削")
+        label = f"目录 {directory_path}" + ("（递归）" if recursive else "")
+        if force:
+            label += "（全量）"
 
-        if not self._start_scrape_batch(files, f"目录 {directory_path}" + ("（递归）" if recursive else "")):
+        if not self._start_scrape_batch(files, label, force=force):
             raise ValueError("已有刮削任务进行中，请稍后再试")
 
-        return {"total": len(files), "skipped": skipped}
+        return {"total": len(files), "skipped": skipped, "force": force}
 
-    def _start_scrape_batch(self, files: list[str], label: str) -> bool:
+    def _start_scrape_batch(self, files: list[str], label: str, force: bool = False) -> bool:
         with self._scrape_lock:
             if self._scrape_progress.get("running"):
                 return False
@@ -854,6 +879,7 @@ class DanmuService:
                 "duration": 0,
             }
             self._scrape_aborted = False
+            self._force_regenerate = force
         t = threading.Thread(target=self._run_scrape_batch, args=(files, label), daemon=True)
         t.start()
         return True
@@ -890,6 +916,7 @@ class DanmuService:
                     })
                 time.sleep(0.5)
         finally:
+            self._force_regenerate = False
             with self._scrape_lock:
                 started = self._scrape_progress.get("started_at")
                 if started:
@@ -947,7 +974,7 @@ class DanmuService:
         if progress.get("running") and progress.get("started_at"):
             progress["duration"] = int(time.time() - progress["started_at"])
         progress.pop("started_at", None)
-        return {"enabled": self._config.get("enabled", False), **progress}
+        return {"auto_scrape": self._config.get("auto_scrape", False), **progress}
 
     def get_full_status(self) -> dict:
         with self._scrape_lock:
@@ -985,7 +1012,8 @@ class DanmuService:
         media_library_accessible = all(os.path.exists(p) for p in media_paths) if media_paths else False
 
         return {
-            "enabled": self._config.get("enabled", False),
+            "auto_scrape": self._config.get("auto_scrape", False),
+            "auto_scrape_mode": self._config.get("auto_scrape_mode", "incremental"),
             "api_connected": api_status.get("reachable", False),
             "api_message": api_status.get("message", ""),
             "media_library_accessible": media_library_accessible,
@@ -1040,10 +1068,11 @@ class DanmuService:
         return data
 
     # ---------- auto scrape ----------
-    def auto_scrape_configured_paths(self) -> dict:
+    def auto_scrape_configured_paths(self, mode: str = "incremental") -> dict:
         paths = self._configured_paths()
         if not paths:
             return {"started": False, "message": "未配置刮削路径"}
+        force = mode == "full"
         total = 0
         started_any = False
         messages = []
@@ -1052,7 +1081,7 @@ class DanmuService:
                 messages.append(f"路径不存在: {p}")
                 continue
             try:
-                res = self.scrape_directory(p, recursive=True)
+                res = self.scrape_directory(p, recursive=True, force=force)
                 total += res.get("total", 0)
                 started_any = True
             except ValueError as e:
@@ -1060,6 +1089,7 @@ class DanmuService:
         return {
             "started": started_any,
             "total": total,
+            "mode": mode,
             "message": "; ".join(messages) if messages else f"已开始刮削 {total} 个文件",
         }
 

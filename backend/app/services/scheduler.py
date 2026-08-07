@@ -1,6 +1,4 @@
 import logging
-import threading
-from typing import Any, Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -24,13 +22,6 @@ class Scheduler:
         self._config = svc.get_config()
         self._reload_jobs(self._config)
         self._scheduler.start()
-        if self._config.get("auto_scrape_on_start") and self._config.get("enabled") \
-                and self._config.get("auto_scrape"):
-            threading.Thread(
-                target=self._safe_auto_scan,
-                name="danmutv-autostart",
-                daemon=True,
-            ).start()
 
     def shutdown(self) -> None:
         if self._scheduler.running:
@@ -48,7 +39,7 @@ class Scheduler:
 
     def _reschedule_retry(self, config: dict) -> None:
         existing = self._scheduler.get_job(self.JOB_RETRY)
-        if config.get("enabled") and config.get("enable_retry_task", True):
+        if config.get("enable_retry_task", True):
             trigger = IntervalTrigger(minutes=5)
             if existing:
                 existing.reschedule(trigger)
@@ -66,10 +57,10 @@ class Scheduler:
 
     def _reschedule_auto_scan(self, config: dict) -> None:
         existing = self._scheduler.get_job(self.JOB_AUTO_SCAN)
-        if config.get("enabled") and config.get("auto_scrape", True):
+        if config.get("auto_scrape"):
             interval = int(config.get("auto_scrape_interval", 3600) or 3600)
-            if interval < 10:
-                interval = 10
+            if interval < 60:
+                interval = 60
             trigger = IntervalTrigger(seconds=interval)
             if existing:
                 existing.reschedule(trigger)
@@ -91,7 +82,7 @@ class Scheduler:
             if not self._svc:
                 return
             cfg = self._svc.get_config()
-            if not cfg.get("enabled") or not cfg.get("enable_retry_task", True):
+            if not cfg.get("enable_retry_task", True):
                 return
             result = self._svc.process_retry_tasks()
             logger.info(f"定时重试任务完成: {result}")
@@ -103,10 +94,11 @@ class Scheduler:
             if not self._svc:
                 return
             cfg = self._svc.get_config()
-            if not cfg.get("enabled") or not cfg.get("auto_scrape", True):
+            if not cfg.get("auto_scrape"):
                 return
-            logger.info("开始定时自动刮削")
-            result = self._svc.auto_scrape_configured_paths()
+            mode = cfg.get("auto_scrape_mode", "incremental")
+            logger.info(f"开始定时自动刮削（模式: {mode}）")
+            result = self._svc.auto_scrape_configured_paths(mode=mode)
             logger.info(f"定时自动刮削结果: {result}")
         except Exception as e:
             logger.exception(f"定时自动刮削异常: {e}")

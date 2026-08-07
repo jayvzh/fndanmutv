@@ -7,8 +7,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # 访问 Token，请务必修改
-      - DANMUTV_TOKEN=changeme-please
+      # 访问密码，请务必修改
+      - ADMIN_TOKEN=changeme-please
       - DANMUTV_LOG_LEVEL=INFO
       # 容器内通过服务名访问内置 danmu-api
       - DANMUTV_DATA_DIR=/data

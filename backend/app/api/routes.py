@@ -7,7 +7,26 @@ from app.models import ApiResponse, ManualMatchRequest
 from app.services import scan_service
 from app.services.danmu_service import DanmuService
 
+# 免鉴权路由：dashboard 只读状态接口，未登录也可查看
+public_router = APIRouter(prefix="/api")
+
+# 需鉴权路由：除 dashboard 状态外的所有操作接口
 router = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
+
+
+@public_router.get("/status")
+def get_status(svc: DanmuService = Depends(get_service)):
+    return ApiResponse.ok(data=svc.get_status())
+
+
+@public_router.get("/full_status")
+def get_full_status(svc: DanmuService = Depends(get_service)):
+    return ApiResponse.ok(data=svc.get_full_status())
+
+
+@router.get("/auth/verify")
+def auth_verify():
+    return ApiResponse.ok(message="ok")
 
 
 @router.get("/config")
@@ -20,21 +39,6 @@ def get_config(svc: DanmuService = Depends(get_service)):
 def post_config(body: dict, svc: DanmuService = Depends(get_service)):
     svc.save_config(body)
     return ApiResponse.ok(message="配置已保存", data=svc.get_config())
-
-
-@router.get("/auth/verify")
-def auth_verify():
-    return ApiResponse.ok(message="ok")
-
-
-@router.get("/status")
-def get_status(svc: DanmuService = Depends(get_service)):
-    return ApiResponse.ok(data=svc.get_status())
-
-
-@router.get("/full_status")
-def get_full_status(svc: DanmuService = Depends(get_service)):
-    return ApiResponse.ok(data=svc.get_full_status())
 
 
 @router.get("/generate_danmu")
@@ -56,10 +60,11 @@ def generate_danmu(file_path: str = Query(...), svc: DanmuService = Depends(get_
 def scrape_directory(
     directory_path: str = Query(...),
     recursive: bool = Query(False),
+    force: bool = Query(False, description="全量模式：即使已有弹幕也重新刮削"),
     svc: DanmuService = Depends(get_service),
 ):
     try:
-        data = svc.scrape_directory(directory_path, recursive=recursive)
+        data = svc.scrape_directory(directory_path, recursive=recursive, force=force)
         return ApiResponse.ok(data=data)
     except ValueError as e:
         return ApiResponse.fail(str(e))
@@ -192,8 +197,11 @@ def api_status(api_url: Optional[str] = Query(None), svc: DanmuService = Depends
 
 
 @router.get("/generate_danmu_with_path")
-def generate_danmu_with_path(svc: DanmuService = Depends(get_service)):
-    return ApiResponse.ok(data=svc.auto_scrape_configured_paths())
+def generate_danmu_with_path(
+    mode: str = Query("incremental", description="incremental=增量跳过已有弹幕，full=全量重新刮削"),
+    svc: DanmuService = Depends(get_service),
+):
+    return ApiResponse.ok(data=svc.auto_scrape_configured_paths(mode=mode))
 
 
 @router.get("/update_path")

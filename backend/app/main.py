@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import router as api_router
+from app.api.routes import public_router, router as api_router
 from app.config import settings
 from app.database import init_db
 from app.logging_config import setup_logging
@@ -53,6 +53,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(public_router)
 app.include_router(api_router)
 
 

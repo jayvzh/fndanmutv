@@ -1,8 +1,8 @@
 import logging
-import os
 import secrets
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger("danmutv.config")
@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     # 本地开发默认使用项目根 data/；Docker 通过环境变量覆盖为 /data
     data_dir: str = str(_PROJECT_ROOT / "data")
     token: str = ""
+    # ADMIN_TOKEN 无环境变量前缀，方便 Docker 部署时直接配置
+    admin_token: str = Field(default="", validation_alias="ADMIN_TOKEN")
     log_level: str = "INFO"
     # 前端构建产物目录，单独使用 FRONTEND_DIST 环境变量
     frontend_dist: str = str(_PROJECT_ROOT / "frontend" / "dist")
@@ -28,10 +30,13 @@ class Settings(BaseSettings):
     def __init__(self, **values):
         super().__init__(**values)
         Path(self.data_dir).mkdir(parents=True, exist_ok=True)
-        if not self.token:
+        # ADMIN_TOKEN 优先于 DANMUTV_TOKEN
+        if self.admin_token:
+            self.token = self.admin_token
+        elif not self.token:
             self.token = secrets.token_urlsafe(24)
             logger.warning(
-                "未配置 DANMUTV_TOKEN，已自动生成临时 Token（重启后会变化）：%s",
+                "未配置 ADMIN_TOKEN/DANMUTV_TOKEN，已自动生成临时 Token（重启后会变化）：%s",
                 self.token,
             )
 
