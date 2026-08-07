@@ -28,3 +28,4 @@ logs/
 *.log
 .trae/
 references/
+docker/ffmpeg/

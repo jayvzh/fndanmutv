@@ -12,15 +12,24 @@ RUN export http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= all_proxy= ALL_PROX
 
 # ---- Stage 2: 解压静态 ffmpeg/ffprobe（自包含，无 Mesa/LLVM 等图形依赖） ----
 # 来源：eugeneware/ffmpeg-static b6.1.1（基于 johnvansickle 静态构建，GPL，ffmpeg 7.0.2）
-# 二进制随仓库分发于 docker/ffmpeg/，避免构建时联网
+# 二进制随仓库分发于 docker/ffmpeg/，避免构建时联网；按 TARGETARCH 选择 x64/arm64
 FROM alpine:3.20 AS ffmpeg
+ARG TARGETARCH
 WORKDIR /out
-COPY docker/ffmpeg/ffmpeg-linux-x64.gz docker/ffmpeg/ffprobe-linux-x64.gz /tmp/
-RUN gunzip /tmp/ffmpeg-linux-x64.gz /tmp/ffprobe-linux-x64.gz \
-    && install -m 0755 /tmp/ffmpeg-linux-x64 /out/ffmpeg \
-    && install -m 0755 /tmp/ffprobe-linux-x64 /out/ffprobe \
-    && /out/ffmpeg -version | head -1 \
-    && /out/ffprobe -version | head -1
+COPY docker/ffmpeg/ffmpeg-linux-x64.gz docker/ffmpeg/ffprobe-linux-x64.gz \
+     docker/ffmpeg/ffmpeg-linux-arm64.gz docker/ffmpeg/ffprobe-linux-arm64.gz /tmp/
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+        amd64) SUFFIX=x64 ;; \
+        arm64) SUFFIX=arm64 ;; \
+        *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    gunzip /tmp/ffmpeg-linux-${SUFFIX}.gz /tmp/ffprobe-linux-${SUFFIX}.gz; \
+    install -m 0755 /tmp/ffmpeg-linux-${SUFFIX} /out/ffmpeg; \
+    install -m 0755 /tmp/ffprobe-linux-${SUFFIX} /out/ffprobe; \
+    rm -f /tmp/ffmpeg-*.gz /tmp/ffprobe-*.gz; \
+    /out/ffmpeg -version | head -1; \
+    /out/ffprobe -version | head -1
 
 # ---- Stage 3: 后端运行 ----
 FROM python:3.12-slim
