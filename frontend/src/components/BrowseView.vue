@@ -892,14 +892,26 @@ async function generateDanmu(item) {
     });
     if (result && result.success) {
       successMessage.value = '弹幕生成成功';
+      const count = result.data?.danmu_count ?? 0;
+      const name = result.data?.file_name || item.name;
+      window.dispatchEvent(new CustomEvent('app:notify', {
+        detail: { success: true, title: '弹幕生成成功', text: `${name}（${count} 条）` },
+      }));
       await navigateToPath(currentPath.value);
       emit('refresh');
     } else {
       console.log('后端返回：', result);
-      error.value = result?.message || '弹幕生成失败';
+      const msg = result?.message || '弹幕生成失败';
+      error.value = msg;
+      window.dispatchEvent(new CustomEvent('app:notify', {
+        detail: { success: false, title: '弹幕生成失败', text: msg },
+      }));
     }
   } catch (err) {
     error.value = '生成弹幕失败，请检查网络或API';
+    window.dispatchEvent(new CustomEvent('app:notify', {
+      detail: { success: false, title: '弹幕生成失败', text: '请检查网络或API' },
+    }));
   } finally {
     item.generating = false;
   }

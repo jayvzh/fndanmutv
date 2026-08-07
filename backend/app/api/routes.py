@@ -43,17 +43,25 @@ def post_config(body: dict, svc: DanmuService = Depends(get_service)):
 
 @router.get("/generate_danmu")
 def generate_danmu(file_path: str = Query(...), svc: DanmuService = Depends(get_service)):
+    import os as _os
+    basename = _os.path.basename(file_path)
     result = svc.generate_single(file_path)
     if result is None:
+        svc.record_single_history(file_path, success=False, danmu_count=0,
+                                  message="弹幕生成失败")
         return ApiResponse.fail("弹幕生成失败")
     if isinstance(result, str) and not result.endswith(".ass"):
+        svc.record_single_history(file_path, success=False, danmu_count=0, message=result)
         return ApiResponse.fail(result)
     ass_file = f"{file_path.rsplit('.', 1)[0]}.danmu.chs.ass"
-    import os as _os
     count = svc.count_danmu_lines_cached(ass_file) if _os.path.exists(ass_file) else 0
     if count == 0:
+        svc.record_single_history(file_path, success=False, danmu_count=0,
+                                  message="弹幕数量为0 跳过生成")
         return ApiResponse.fail("弹幕数量为0 跳过生成")
-    return ApiResponse.ok(data={"danmu_count": count, "file_path": file_path})
+    svc.record_single_history(file_path, success=True, danmu_count=count)
+    return ApiResponse.ok(data={"danmu_count": count, "file_path": file_path,
+                                "file_name": basename})
 
 
 @router.get("/scrape_directory")

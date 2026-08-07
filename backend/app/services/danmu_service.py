@@ -457,6 +457,30 @@ class DanmuService:
             for item in self._global_history:
                 database.insert_history_record(item)
 
+    def record_single_history(self, file_path: str, success: bool,
+                              danmu_count: int = 0, message: str = "") -> None:
+        """记录单文件手动刮削历史。"""
+        record = {
+            "type": "single",
+            "path": file_path,
+            "file": os.path.basename(file_path),
+            "processed": 1,
+            "success": 1 if success else 0,
+            "failed": 0 if success else 1,
+            "danmu_count": danmu_count,
+            "duration": 0,
+            "aborted": False,
+            "message": message,
+        }
+        if self._config.get("enable_history_details"):
+            record["details"] = [{
+                "file": os.path.basename(file_path),
+                "result": "success" if success else "failed",
+                "danmu_count": danmu_count,
+                "message": message,
+            }]
+        self._append_history(record)
+
     def get_history(self, page: int = 1, page_size: int = 20,
                     include_details: bool = False) -> dict:
         page = max(1, int(page or 1))

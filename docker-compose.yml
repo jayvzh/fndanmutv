@@ -5,10 +5,10 @@ services:
     container_name: danmutv
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8017:8017"
     environment:
       # 访问密码，请务必修改
-      - ADMIN_TOKEN=changeme-please
+      - ADMIN_TOKEN=fn-danmutv
       - DANMUTV_LOG_LEVEL=INFO
       # 容器内通过服务名访问内置 danmu-api
       - DANMUTV_DATA_DIR=/data
@@ -16,7 +16,7 @@ services:
       - ./data:/data
       # 媒体库，必须可写（弹幕/合并字幕写回视频同目录）
       # 将左侧改为你的宿主机媒体路径：
-      - /path/to/your/media:/media:rw
+      - ./media:/media:rw
     # 若使用下方内置 danmu-api 则保留依赖；指向外部 API 时可删除
     depends_on:
       - danmu-api
