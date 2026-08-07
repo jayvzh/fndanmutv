@@ -1,58 +1,56 @@
 <template>
-  <v-container fluid class="pa-4">
-    <v-card flat class="rounded border status-card">
-      <v-card-title class="text-caption d-flex align-center px-3 py-2 bg-primary-lighten-5 flex-wrap">
-        <v-icon icon="mdi-alert-circle-outline" color="warning" size="small" class="mr-2"></v-icon>
-        重试任务列表
-        <span class="text-sm text-grey ml-2">({{ total }} 个)</span>
-        <v-spacer></v-spacer>
-        <div class="d-flex align-center" style="gap: 8px;">
-          <v-chip v-if="minDanmuCount" size="small" variant="tonal" color="grey">最小弹幕: {{ minDanmuCount }}</v-chip>
-          <v-chip v-if="maxRetryTimes" size="small" variant="tonal" color="grey">最大重试: {{ maxRetryTimes }}</v-chip>
-          <v-btn color="primary" size="small" variant="tonal" prepend-icon="mdi-refresh" @click="processAll">
-            全部重试
-          </v-btn>
-          <v-btn color="error" size="small" variant="tonal" prepend-icon="mdi-delete" @click="clearAll">
-            清空全部
-          </v-btn>
-        </div>
-      </v-card-title>
-      <v-card-text class="px-3 py-2">
-        <v-data-table
-          :headers="headers"
-          :items="tasks"
-          :items-per-page="10"
-          :loading="loading"
-          class="elevation-1"
-          hide-default-footer
-        >
-          <template v-slot:item.file_path="{ item }">
-            <div class="text-truncate" :title="item.file_path">
-              {{ getFileName(item.file_path) }}
-            </div>
-          </template>
-          <template v-slot:item.error_type="{ item }">
-            <v-chip :color="getErrorColor(item.error_type)" size="small">
-              {{ getErrorLabel(item.error_type) }}
-            </v-chip>
-          </template>
-          <template v-slot:item.actions="{ item }">
-            <v-btn icon size="small" color="primary" @click="retrySingle(item.file_path)">
-              <v-icon icon="mdi-refresh"></v-icon>
-            </v-btn>
-            <v-btn icon size="small" color="error" @click="removeSingle(item.file_path)">
-              <v-icon icon="mdi-delete"></v-icon>
-            </v-btn>
-          </template>
-        </v-data-table>
+  <div>
+    <div class="d-flex align-center mb-4 flex-wrap gap-2">
+      <v-icon icon="mdi-alert-circle-outline" color="warning" size="22" class="mr-2"></v-icon>
+      <span class="section-title-text">重试任务列表</span>
+      <v-chip label size="small" variant="tonal" color="grey">{{ total }}</v-chip>
+      <v-spacer></v-spacer>
+      <div class="d-flex align-center gap-2 flex-wrap">
+        <v-chip v-if="minDanmuCount" variant="tonal" color="grey">最小弹幕: {{ minDanmuCount }}</v-chip>
+        <v-chip v-if="maxRetryTimes" variant="tonal" color="grey">最大重试: {{ maxRetryTimes }}</v-chip>
+        <v-btn color="primary" variant="tonal" prepend-icon="mdi-refresh" @click="processAll">
+          全部重试
+        </v-btn>
+        <v-btn color="error" variant="tonal" prepend-icon="mdi-delete" @click="clearAll">
+          清空全部
+        </v-btn>
+      </div>
+    </div>
 
-        <div v-if="total === 0" class="text-center py-8 text-grey">
-          <v-icon icon="mdi-check-circle" size="48" color="success"></v-icon>
-          <p class="mt-2">暂无重试任务</p>
+    <v-data-table
+      :headers="headers"
+      :items="tasks"
+      :items-per-page="10"
+      :loading="loading"
+      density="comfortable"
+      class="retry-table"
+      hide-default-footer
+    >
+      <template v-slot:item.file_path="{ item }">
+        <div class="text-truncate" :title="item.file_path">
+          {{ getFileName(item.file_path) }}
         </div>
-      </v-card-text>
-    </v-card>
-  </v-container>
+      </template>
+      <template v-slot:item.error_type="{ item }">
+        <v-chip :color="getErrorColor(item.error_type)" size="small">
+          {{ getErrorLabel(item.error_type) }}
+        </v-chip>
+      </template>
+      <template v-slot:item.actions="{ item }">
+        <v-btn icon color="primary" @click="retrySingle(item.file_path)">
+          <v-icon icon="mdi-refresh"></v-icon>
+        </v-btn>
+        <v-btn icon color="error" @click="removeSingle(item.file_path)">
+          <v-icon icon="mdi-delete"></v-icon>
+        </v-btn>
+      </template>
+    </v-data-table>
+
+    <div v-if="total === 0" class="empty-state text-center py-12 text-grey">
+      <v-icon icon="mdi-check-circle" size="64" color="success"></v-icon>
+      <p class="text-h6 mt-4 mb-0">暂无重试任务</p>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -160,23 +158,20 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.bg-primary-lighten-5 {
-  background-color: rgba(var(--v-theme-primary), 0.07);
+.section-title-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
-.border {
-  border: thin solid rgba(var(--v-border-color), var(--v-border-opacity));
+.retry-table {
+  border-radius: 8px;
 }
 
-.status-card {
-  background-image: linear-gradient(to right, rgba(var(--v-theme-surface), 0.98), rgba(var(--v-theme-surface), 0.95)), 
-                    repeating-linear-gradient(45deg, rgba(var(--v-theme-primary), 0.03), rgba(var(--v-theme-primary), 0.03) 10px, transparent 10px, transparent 20px);
-  background-attachment: fixed;
-  box-shadow: 0 1px 2px rgba(var(--v-border-color), var(--v-border-opacity)) !important;
-  transition: all 0.3s ease;
-}
-
-.status-card:hover {
-  box-shadow: 0 3px 6px rgba(var(--v-border-color), var(--v-border-opacity)) !important;
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 </style>

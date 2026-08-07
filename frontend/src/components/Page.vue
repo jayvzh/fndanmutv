@@ -1,54 +1,64 @@
 <template>
   <div class="plugin-page">
-    <v-card flat class="rounded border">
-      <v-card-title class="text-subtitle-1 d-flex align-center px-3 py-2 bg-primary-lighten-5">
-        <v-icon icon="mdi-video" class="mr-2" color="primary" size="small" />
-        <span>DanmuTV 弹幕刮削</span>
-      </v-card-title>
-      
+    <v-card flat class="main-card rounded-lg overflow-hidden">
+      <!-- 顶部紧凑工具栏：标题 + 配置按钮 -->
+      <div class="topbar d-flex align-center px-5 py-3">
+        <v-icon icon="mdi-television-play" color="primary" size="26" class="mr-3" />
+        <div class="topbar-title">DanmuTV</div>
+        <v-spacer></v-spacer>
+        <v-btn
+          color="primary"
+          variant="tonal"
+          @click="emit('switch')"
+          prepend-icon="mdi-cog"
+          size="small"
+        >
+          配置
+        </v-btn>
+      </div>
+
+      <v-divider></v-divider>
+
+      <!-- 标签栏 -->
       <v-tabs
         v-model="activeTab"
-        class="px-3"
-        centered
-        background-color="transparent"
-        shrink
+        color="primary"
+        bg-color="surface"
+        grow
+        slider-color="primary"
+        class="main-tabs"
       >
-        <v-tab value="dashboard">
-          <v-icon icon="mdi-view-dashboard" size="small" class="mr-1"></v-icon>
+        <v-tab value="dashboard" class="tab-item">
+          <v-icon icon="mdi-view-dashboard" size="18" class="mr-2"></v-icon>
           仪表盘
         </v-tab>
-        <v-tab value="browse">
-          <v-icon icon="mdi-folder" size="small" class="mr-1"></v-icon>
+        <v-tab value="browse" class="tab-item">
+          <v-icon icon="mdi-folder" size="18" class="mr-2"></v-icon>
           目录浏览
         </v-tab>
-        <v-tab value="retry">
-          <v-icon icon="mdi-alert-circle-outline" size="small" class="mr-1"></v-icon>
+        <v-tab value="retry" class="tab-item">
+          <v-icon icon="mdi-alert-circle-outline" size="18" class="mr-2"></v-icon>
           重试任务
         </v-tab>
-        <v-tab value="history">
-          <v-icon icon="mdi-history" size="small" class="mr-1"></v-icon>
+        <v-tab value="history" class="tab-item">
+          <v-icon icon="mdi-history" size="18" class="mr-2"></v-icon>
           历史记录
         </v-tab>
-        <v-tab value="cleanup">
-          <v-icon icon="mdi-delete-sweep" size="small" class="mr-1"></v-icon>
+        <v-tab value="cleanup" class="tab-item">
+          <v-icon icon="mdi-delete-sweep" size="18" class="mr-2"></v-icon>
           清理
         </v-tab>
       </v-tabs>
 
-      <v-card-text class="p-0">
+      <v-divider></v-divider>
+
+      <v-card-text class="pa-6">
         <Dashboard v-if="activeTab === 'dashboard'" />
         <BrowseView v-else-if="activeTab === 'browse'" @refresh="refreshDashboard" />
         <RetryTasks v-else-if="activeTab === 'retry'" />
         <History v-else-if="activeTab === 'history'" />
         <Cleanup v-else-if="activeTab === 'cleanup'" />
       </v-card-text>
-
-      <v-divider></v-divider>
-      
-      <v-card-actions class="px-2 py-1">
-        <v-btn color="info" @click="emit('switch')" prepend-icon="mdi-cog" variant="text" size="small">配置</v-btn>
-        <v-spacer></v-spacer>
-      </v-card-actions>
     </v-card>
   </div>
 </template>
@@ -80,16 +90,39 @@ watch(activeTab, (newTab) => {
 
 <style scoped>
 .plugin-page {
-  max-width: 80rem;
+  max-width: 90rem;
+  width: 100%;
   margin: 0 auto;
-  padding: 0.5rem;
+  padding: 1.25rem;
+  box-sizing: border-box;
 }
 
-.bg-primary-lighten-5 {
-  background-color: rgba(var(--v-theme-primary), 0.07);
+.main-card {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  background: #FFFFFF;
 }
 
-.border {
-  border: thin solid rgba(var(--v-border-color), var(--v-border-opacity));
+.topbar {
+  background: #FFFFFF;
+}
+
+.topbar-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.87);
+  letter-spacing: 0.2px;
+}
+
+.main-tabs {
+  font-size: 0.95rem;
+}
+
+.tab-item {
+  font-size: 0.9rem;
+  font-weight: 500;
+  min-height: 46px;
+  text-transform: none;
+  letter-spacing: normal;
 }
 </style>

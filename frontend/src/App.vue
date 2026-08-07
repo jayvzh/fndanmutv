@@ -1,13 +1,13 @@
 <template>
   <v-app>
     <div class="app-root">
-      <v-card v-if="!token" class="login-card" elevation="8">
-        <v-card-title class="d-flex align-center justify-center pb-1">
-          <v-icon icon="mdi-lock" color="primary" class="mr-2" />
+      <v-card v-if="!token" class="login-card" elevation="4">
+        <v-card-title class="d-flex align-center justify-center pb-2 text-h6">
+          <v-icon icon="mdi-lock" color="primary" class="mr-2" size="28" />
           DanmuTV 访问令牌
         </v-card-title>
         <v-card-text>
-          <v-alert v-if="loginError" type="error" density="compact" variant="tonal" class="mb-3">
+          <v-alert v-if="loginError" type="error" variant="tonal" class="mb-4">
             {{ loginError }}
           </v-alert>
           <v-text-field
@@ -15,17 +15,18 @@
             label="访问令牌"
             type="password"
             variant="outlined"
-            density="compact"
             autocomplete="current-password"
             @keyup.enter="handleLogin"
             :disabled="verifying"
             autofocus
+            density="comfortable"
           />
         </v-card-text>
-        <v-card-actions class="px-4 pb-4">
+        <v-card-actions class="px-6 pb-6">
           <v-spacer />
           <v-btn
             color="primary"
+            size="large"
             :loading="verifying"
             :disabled="!inputToken.trim()"
             @click="handleLogin"
@@ -107,12 +108,22 @@ onBeforeUnmount(() => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background-color: #F5F7FA;
 }
 
 .login-card {
-  max-width: 26rem;
+  max-width: 28rem;
   width: calc(100% - 2rem);
   margin: auto;
-  border-radius: 12px;
+  border-radius: 16px;
+}
+
+/* 全局增大字体与间距，适配独立 Web 页面 */
+.v-card-title {
+  font-size: 1.1rem !important;
+}
+
+.v-btn {
+  text-transform: none !important;
 }
 </style>

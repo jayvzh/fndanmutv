@@ -1,250 +1,246 @@
 <template>
-  <v-container fluid class="pa-4">
-    <v-card flat class="rounded border status-card">
-      <v-card-title class="text-caption d-flex align-center px-3 py-2 bg-primary-lighten-5">
-        <v-icon icon="mdi-folder" class="mr-2" color="primary" size="small" />
-        <span>目录浏览</span>
-      </v-card-title>
-      <v-card-text class="px-3 py-2">
-        <v-row class="mb-2">
-          <v-col cols="12">
-            <v-text-field
-              v-model="searchKeyword"
-              density="compact"
-              variant="outlined"
-              hide-details
-              placeholder="搜索文件/目录"
-              prepend-inner-icon="mdi-magnify"
-              class="search-field"
-            ></v-text-field>
-          </v-col>
-        </v-row>
-        <v-row class="mb-3">
-          <v-col cols="12" sm="4" md="2">
-            <v-btn
-              color="primary"
-              size="small"
-              variant="tonal"
-              prepend-icon="mdi-download-multiple"
-              :loading="batchStarting"
-              :disabled="scrapingStatus.running"
-              @click="scrapeCurrentDirectory"
-              class="w-full"
-            >
-              刮削本目录
-            </v-btn>
-          </v-col>
-          <v-col cols="12" sm="4" md="2">
-            <v-btn
-              color="info"
-              size="small"
-              variant="tonal"
-              prepend-icon="mdi-bar-chart"
-              :loading="scanningStats"
-              @click="scanDirectoryStats"
-              class="w-full"
-            >
-              扫描统计
-            </v-btn>
-          </v-col>
-          <v-col cols="12" sm="4" md="2">
-            <v-btn
-              color="warning"
-              size="small"
-              variant="tonal"
-              prepend-icon="mdi-trash-can"
-              :loading="batchStarting"
-              :disabled="scrapingStatus.running"
-              @click="cleanCurrentDirectorySubtitles"
-              class="w-full"
-            >
-              清理字幕
-            </v-btn>
-          </v-col>
-        </v-row>
+  <div class="browse-view">
+    <div class="section-title d-flex align-center mb-4">
+      <v-icon icon="mdi-folder" color="primary" size="22" class="mr-2"></v-icon>
+      <span>目录浏览</span>
+    </div>
 
-        <v-row>
-          <v-col cols="12">
-            <div v-if="directoryContent" class="directory-content">
-              <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-2"></v-progress-linear>
-              
-              <v-card v-if="scrapingStatus.running" class="mb-4 bg-primary-lighten-5">
-                <v-card-title class="text-caption d-flex align-center px-3 py-2">
-                  <v-icon icon="mdi-loader" color="primary" size="small" class="mr-2 animate-spin"></v-icon>
-                  正在刮削中
-                  <v-spacer></v-spacer>
-                  <v-btn
-                    color="error"
-                    size="small"
-                    variant="tonal"
-                    prepend-icon="mdi-stop"
-                    @click="abortScraping"
-                  >
-                    中止
-                  </v-btn>
-                </v-card-title>
-                <v-card-text class="px-3 py-2">
-                  <v-progress-linear :value="scrapingStatus.total > 0 ? (scrapingStatus.processed / scrapingStatus.total * 100) : 0" 
-                                     color="primary" height="8" class="mb-2"></v-progress-linear>
-                  <div class="flex justify-between">
-                    <span class="text-body-2">当前文件: {{ scrapingStatus.current_file || '-' }}</span>
-                    <span class="text-body-2 font-bold">{{ scrapingStatus.processed }} / {{ scrapingStatus.total }}</span>
-                  </div>
-                  <div class="flex justify-between mt-1">
-                    <span class="text-body-2">成功: <span class="text-success">{{ scrapingStatus.success }}</span> | 失败: <span class="text-error">{{ scrapingStatus.failed }}</span></span>
-                    <span class="text-body-2">耗时: {{ formatDuration(scrapingStatus.duration) }}</span>
-                  </div>
-                </v-card-text>
-              </v-card>
-              
-              <div v-if="currentPath" 
-                   class="back-item d-flex align-center py-2 mb-2"
-                   @click="goBack()">
-                <v-icon icon="mdi-keyboard-backspace" size="small" color="primary" class="mr-2"></v-icon>
-                <span class="text-subtitle-2 text-primary cursor-pointer">
-                  {{ directoryContent.is_root ? '返回目录列表' : '返回上级目录' }}
+    <v-row class="mb-4">
+      <v-col cols="12">
+        <v-text-field
+          v-model="searchKeyword"
+          variant="outlined"
+          hide-details
+          placeholder="搜索文件/目录"
+          prepend-inner-icon="mdi-magnify"
+          class="search-field"
+        ></v-text-field>
+      </v-col>
+    </v-row>
+    <v-row class="mb-4">
+      <v-col cols="12" sm="4" md="3">
+        <v-btn
+          color="primary"
+          size="default"
+          variant="flat"
+          prepend-icon="mdi-download-multiple"
+          :loading="batchStarting"
+          :disabled="scrapingStatus.running"
+          @click="scrapeCurrentDirectory"
+          class="w-full"
+        >
+          刮削本目录
+        </v-btn>
+      </v-col>
+      <v-col cols="12" sm="4" md="3">
+        <v-btn
+          color="info"
+          size="default"
+          variant="tonal"
+          prepend-icon="mdi-bar-chart"
+          :loading="scanningStats"
+          @click="scanDirectoryStats"
+          class="w-full"
+        >
+          扫描统计
+        </v-btn>
+      </v-col>
+      <v-col cols="12" sm="4" md="3">
+        <v-btn
+          color="warning"
+          size="default"
+          variant="tonal"
+          prepend-icon="mdi-trash-can"
+          :loading="batchStarting"
+          :disabled="scrapingStatus.running"
+          @click="cleanCurrentDirectorySubtitles"
+          class="w-full"
+        >
+          清理字幕
+        </v-btn>
+      </v-col>
+    </v-row>
+
+    <v-row>
+      <v-col cols="12">
+        <div v-if="directoryContent" class="directory-content">
+          <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-3"></v-progress-linear>
+
+          <v-card v-if="scrapingStatus.running" class="section-card progress-card mb-4" elevation="0">
+            <v-card-title class="section-title d-flex align-center">
+              <v-icon icon="mdi-loader" color="primary" size="22" class="mr-2 animate-spin"></v-icon>
+              正在刮削中
+              <v-spacer></v-spacer>
+              <v-btn
+                color="error"
+                size="default"
+                variant="tonal"
+                prepend-icon="mdi-stop"
+                @click="abortScraping"
+              >
+                中止
+              </v-btn>
+            </v-card-title>
+            <v-card-text>
+              <v-progress-linear :value="scrapingStatus.total > 0 ? (scrapingStatus.processed / scrapingStatus.total * 100) : 0"
+                                 color="primary" height="8" class="mb-3"></v-progress-linear>
+              <div class="d-flex justify-between">
+                <span class="text-body-1">当前文件: {{ scrapingStatus.current_file || '-' }}</span>
+                <span class="text-body-1 font-weight-bold">{{ scrapingStatus.processed }} / {{ scrapingStatus.total }}</span>
+              </div>
+              <div class="d-flex justify-between mt-2">
+                <span class="text-body-1">成功: <span class="text-success">{{ scrapingStatus.success }}</span> | 失败: <span class="text-error">{{ scrapingStatus.failed }}</span></span>
+                <span class="text-body-1">耗时: {{ formatDuration(scrapingStatus.duration) }}</span>
+              </div>
+            </v-card-text>
+          </v-card>
+
+          <div v-if="currentPath"
+               class="back-item d-flex align-center py-3 px-3 mb-3"
+               @click="goBack()">
+            <v-icon icon="mdi-keyboard-backspace" size="22" color="primary" class="mr-3"></v-icon>
+            <span class="text-subtitle-1 text-primary cursor-pointer">
+              {{ directoryContent.is_root ? '返回目录列表' : '返回上级目录' }}
+            </span>
+          </div>
+
+          <template v-for="(item, index) in filteredItems" :key="index">
+            <div v-if="item.type === 'directory'"
+                 class="directory-item d-flex align-center py-3 px-3 mb-2"
+                 @click="navigateToPath(item.path)">
+              <v-icon icon="mdi-folder" size="22" color="primary" class="mr-3"></v-icon>
+              <div class="flex-grow-1 d-flex align-center">
+                <span class="text-body-1 cursor-pointer">{{ item.name }}</span>
+                <v-chip
+                  v-if="item.manual_match"
+                  size="small"
+                  color="secondary"
+                  class="ml-2"
+                  closable
+                  @click.stop
+                  @click:close.stop="clearManualMatch(item, item.manual_scope)"
+                >
+                  {{ manualChipText(item) }}
+                </v-chip>
+              </div>
+              <div v-if="item.scrape_status" class="mr-3 text-right">
+                <span class="text-body-1" :class="getScrapeStatusClass(item.scrape_status)">
+                  {{ item.scrape_status.scraped_files }}/{{ item.scrape_status.total_files }}
                 </span>
               </div>
+              <v-btn
+                icon="mdi-download-multiple"
+                size="default"
+                variant="text"
+                color="primary"
+                class="mr-1"
+                :disabled="scrapingStatus.running"
+                @click.stop="scrapeDirectory(item.path, true)"
+              ></v-btn>
+              <v-btn
+                icon="mdi-magnify"
+                size="default"
+                variant="text"
+                color="secondary"
+                class="mr-1"
+                @click.stop="openManualMatch(item)"
+              ></v-btn>
+              <v-icon icon="mdi-chevron-right" size="22" color="grey"></v-icon>
+            </div>
 
-              <template v-for="(item, index) in filteredItems" :key="index">
-                <div v-if="item.type === 'directory'" 
-                     class="directory-item d-flex align-center py-2"
-                     @click="navigateToPath(item.path)">
-                  <v-icon icon="mdi-folder" size="small" color="primary" class="mr-2"></v-icon>
-                  <div class="flex-grow-1 d-flex align-center">
-                    <span class="text-subtitle-2 cursor-pointer">{{ item.name }}</span>
-                    <v-chip
-                      v-if="item.manual_match"
-                      size="small"
-                      color="secondary"
-                      class="ml-2"
-                      closable
-                      @click.stop
-                      @click:close.stop="clearManualMatch(item, item.manual_scope)"
-                    >
-                      {{ manualChipText(item) }}
-                    </v-chip>
-                  </div>
-                  <div v-if="item.scrape_status" class="mr-2 text-right">
-                    <span class="text-caption" :class="getScrapeStatusClass(item.scrape_status)">
-                      {{ item.scrape_status.scraped_files }}/{{ item.scrape_status.total_files }}
-                    </span>
-                  </div>
-                  <v-btn
-                    icon="mdi-download-multiple"
+            <div v-else-if="item.type === 'media'"
+                 class="media-item d-flex align-center py-3 px-3 mb-2">
+              <v-icon icon="mdi-video" size="22" color="info" class="mr-3"></v-icon>
+              <div class="flex-grow-1">
+                <div class="d-flex align-center flex-wrap">
+                  <span class="text-body-1">{{ item.name }}</span>
+                  <v-chip size="small" color="info" class="ml-2" v-if="item.danmu_count > 0">
+                    弹幕: {{ item.danmu_count }}
+                  </v-chip>
+                  <v-chip size="small" color="grey" class="ml-2" v-else>
+                    无弹幕
+                  </v-chip>
+                  <v-chip
+                    v-if="item.manual_match"
                     size="small"
-                    variant="text"
-                    color="primary"
-                    class="mr-1"
-                    :disabled="scrapingStatus.running"
-                    @click.stop="scrapeDirectory(item.path, true)"
-                  ></v-btn>
-                  <v-btn
-                    icon="mdi-magnify"
-                    size="small"
-                    variant="text"
                     color="secondary"
-                    class="mr-1"
-                    @click.stop="openManualMatch(item)"
-                  ></v-btn>
-                  <v-icon icon="mdi-chevron-right" size="small" color="grey"></v-icon>
-                </div>
-                
-                <div v-else-if="item.type === 'media'" 
-                     class="media-item d-flex align-center py-2">
-                  <v-icon icon="mdi-video" size="small" color="info" class="mr-2"></v-icon>
-                  <div class="flex-grow-1">
-                    <div class="d-flex align-center">
-                      <span class="text-subtitle-2">{{ item.name }}</span>
-                      <v-chip size="small" color="info" class="ml-2" v-if="item.danmu_count > 0">
-                        弹幕: {{ item.danmu_count }}
-                      </v-chip>
-                      <v-chip size="small" color="grey" class="ml-2" v-else>
-                        无弹幕
-                      </v-chip>
-                      <v-chip
-                        v-if="item.manual_match"
-                        size="small"
-                        color="secondary"
-                        class="ml-2"
-                        closable
-                        @click:close.stop="clearManualMatch(item, item.manual_scope)"
-                      >
-                        {{ manualChipText(item) }}
-                      </v-chip>
-                    </div>
-                  </div>
-                  <v-btn
-                    color="secondary"
-                    size="small"
-                    variant="text"
-                    class="mr-1"
-                    @click="openManualMatch(item)"
+                    class="ml-2"
+                    closable
+                    @click:close.stop="clearManualMatch(item, item.manual_scope)"
                   >
-                    <v-icon icon="mdi-magnify" size="small" class="mr-1"></v-icon>
-                    手动匹配
-                  </v-btn>
-                  <v-btn
-                    color="primary"
-                    size="small"
-                    variant="text"
-                    :loading="item.generating"
-                    @click="generateDanmu(item)"
-                  >
-                    <v-icon icon="mdi-download" size="small" class="mr-1"></v-icon>
-                    刮削
-                  </v-btn>
+                    {{ manualChipText(item) }}
+                  </v-chip>
                 </div>
-              </template>
-              
-              <div v-if="directoryContent.children && directoryContent.children.length === 0" 
-                   class="text-center py-4">
-                <v-alert type="info" density="compact" class="mb-2 text-caption" variant="tonal">
-                  该目录为空或没有支持的媒体文件
-                </v-alert>
               </div>
+              <v-btn
+                color="secondary"
+                size="default"
+                variant="tonal"
+                class="mr-2"
+                @click="openManualMatch(item)"
+              >
+                <v-icon icon="mdi-magnify" size="20" class="mr-1"></v-icon>
+                手动匹配
+              </v-btn>
+              <v-btn
+                color="primary"
+                size="default"
+                variant="flat"
+                :loading="item.generating"
+                @click="generateDanmu(item)"
+              >
+                <v-icon icon="mdi-download" size="20" class="mr-1"></v-icon>
+                刮削
+              </v-btn>
             </div>
-            
-            <div v-else-if="loading" class="text-center py-4">
-              <v-progress-linear indeterminate color="primary" class="mb-2"></v-progress-linear>
-              <div class="text-caption text-grey">正在扫描目录，请稍候...</div>
-            </div>
+          </template>
 
-            <div v-else-if="notConfigured" class="text-center py-4">
-              <v-alert type="info" density="compact" class="mb-2 text-caption" variant="tonal">
-                请先在配置中设置刮削路径
-              </v-alert>
-            </div>
+          <div v-if="directoryContent.children && directoryContent.children.length === 0"
+               class="text-center py-6">
+            <v-alert type="info" variant="tonal" class="mb-2 text-body-1">
+              该目录为空或没有支持的媒体文件
+            </v-alert>
+          </div>
+        </div>
 
-            <div v-else-if="error" class="text-center py-4">
-              <v-alert type="error" density="compact" class="mb-2 text-caption" variant="tonal">{{ error }}</v-alert>
-            </div>
+        <div v-else-if="loading" class="text-center py-6">
+          <v-progress-linear indeterminate color="primary" class="mb-3"></v-progress-linear>
+          <div class="text-body-1 text-grey">正在扫描目录，请稍候...</div>
+        </div>
 
-            <div v-else class="text-center py-4">
-              <v-alert type="info" density="compact" class="mb-2 text-caption" variant="tonal">
-                请先在配置中设置刮削路径
-              </v-alert>
-            </div>
-          </v-col>
-        </v-row>
-      </v-card-text>
-    </v-card>
+        <div v-else-if="notConfigured" class="text-center py-6">
+          <v-alert type="info" variant="tonal" class="mb-2 text-body-1">
+            请先在配置中设置刮削路径
+          </v-alert>
+        </div>
+
+        <div v-else-if="error" class="text-center py-6">
+          <v-alert type="error" variant="tonal" class="mb-2 text-body-1">{{ error }}</v-alert>
+        </div>
+
+        <div v-else class="text-center py-6">
+          <v-alert type="info" variant="tonal" class="mb-2 text-body-1">
+            请先在配置中设置刮削路径
+          </v-alert>
+        </div>
+      </v-col>
+    </v-row>
 
     <v-dialog v-model="manualDialog" max-width="720">
-      <v-card>
-        <v-card-title class="text-subtitle-1">
+      <v-card class="section-card" elevation="0">
+        <v-card-title class="section-title d-flex align-center">
+          <v-icon icon="mdi-magnify" color="primary" size="22" class="mr-2"></v-icon>
           手动匹配弹幕
         </v-card-title>
         <v-card-text>
-          <div class="text-caption text-grey mb-2">
+          <div class="text-body-1 text-grey mb-3">
             当前选择：{{ manualTargetItem?.name || '未选择文件' }}
           </div>
           <v-alert
             v-if="manualExistingMatch"
             type="info"
-            density="compact"
             variant="tonal"
-            class="mb-2 text-caption"
+            class="mb-3 text-body-1"
           >
             已匹配（{{ scopeLabel(manualExistingScope) }}）：{{ manualExistingMatch.animeTitle || `ID ${manualExistingMatch.animeId}` }}
             <span v-if="manualExistingOffset">（集数偏移 {{ formatOffset(manualExistingOffset) }}）</span>
@@ -252,9 +248,8 @@
           <v-alert
             v-if="manualSearchError"
             type="error"
-            density="compact"
             variant="tonal"
-            class="mb-2 text-caption"
+            class="mb-3 text-body-1"
             closable
             @click:close="manualSearchError = null"
           >
@@ -265,7 +260,6 @@
               <v-text-field
                 v-model="manualSearchKeyword"
                 label="搜索关键字"
-                density="compact"
                 variant="outlined"
                 clearable
                 hide-details
@@ -278,7 +272,6 @@
                 :items="manualTypeOptions"
                 item-title="title"
                 item-value="value"
-                density="compact"
                 variant="outlined"
                 hide-details
                 label="类型"
@@ -287,6 +280,8 @@
             <v-col cols="12" md="2" class="d-flex align-center">
               <v-btn
                 color="primary"
+                size="default"
+                variant="flat"
                 block
                 :loading="manualSearchLoading"
                 @click="performManualSearch"
@@ -299,14 +294,13 @@
             v-if="manualSearchLoading"
             indeterminate
             color="primary"
-            class="mb-2"
+            class="mb-3 mt-2"
           ></v-progress-linear>
           <v-row v-if="manualTargetItem && manualTargetItem.type === 'media'">
             <v-col cols="12">
               <v-radio-group
                 v-model="manualScope"
                 inline
-                density="compact"
                 hide-details
               >
                 <v-radio label="仅当前文件" value="file"></v-radio>
@@ -315,12 +309,11 @@
             </v-col>
           </v-row>
           <v-row>
-            <v-col cols="12" md="5">
+            <v-col cols="12" md="6">
               <v-text-field
                 v-model="manualEpisodeOffset"
                 label="集数偏移"
                 type="number"
-                density="compact"
                 variant="outlined"
                 hint="本地集数 + 偏移 = 弹弹集数，如本地 13 对应弹弹 1 则填 -12"
                 persistent-hint
@@ -330,9 +323,8 @@
           <v-alert
             v-if="!manualSearchLoading && manualSearchPerformed && manualSearchResults.length === 0"
             type="info"
-            density="compact"
             variant="tonal"
-            class="mb-2 text-caption"
+            class="mb-2 text-body-1"
           >
             未找到匹配结果，请调整关键字后再试。
           </v-alert>
@@ -343,7 +335,7 @@
               :active="manualSelected && manualSelected.animeId === anime.animeId"
               @click="selectManualResult(anime)"
             >
-              <v-list-item-title>{{ anime.animeTitle }}</v-list-item-title>
+              <v-list-item-title class="text-body-1">{{ anime.animeTitle }}</v-list-item-title>
               <v-list-item-subtitle>
                 {{ anime.typeDescription || '未知类型' }}
                 <span v-if="anime.episodeCount"> · {{ anime.episodeCount }} 集</span>
@@ -353,7 +345,7 @@
               <template #append>
                 <v-btn
                   icon="mdi-check"
-                  size="small"
+                  size="default"
                   variant="text"
                   :color="manualSelected && manualSelected.animeId === anime.animeId ? 'primary' : 'grey'"
                 ></v-btn>
@@ -361,7 +353,7 @@
             </v-list-item>
           </v-list>
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="px-6 py-4">
           <v-btn
             color="grey"
             variant="text"
@@ -374,6 +366,7 @@
           <v-btn variant="text" @click="closeManualDialog">取消</v-btn>
           <v-btn
             color="primary"
+            variant="flat"
             :disabled="!manualSelected"
             :loading="manualSaving"
             @click="confirmManualMatch"
@@ -385,36 +378,35 @@
     </v-dialog>
 
     <v-dialog v-model="cleanConfirmDialog" max-width="500">
-      <v-card>
-        <v-card-title class="text-subtitle-1">
-          <v-icon icon="mdi-alert-circle" color="warning" class="mr-2"></v-icon>
+      <v-card class="section-card" elevation="0">
+        <v-card-title class="section-title d-flex align-center">
+          <v-icon icon="mdi-alert-circle" color="warning" size="22" class="mr-2"></v-icon>
           确认清理字幕
         </v-card-title>
         <v-card-text>
           <div class="text-body-1">
             确定要清理当前目录下的所有弹幕和合并字幕文件吗？
           </div>
-          <div class="text-caption text-grey mt-2">
+          <div class="text-body-1 text-grey mt-3">
             目录：{{ currentPath }}
           </div>
           <v-alert
             type="warning"
-            density="compact"
             variant="tonal"
-            class="mt-3 text-caption"
+            class="mt-4 text-body-1"
           >
             此操作不可恢复，清理后需重新刮削获取弹幕。
           </v-alert>
         </v-card-text>
-        <v-card-actions class="px-6 py-3">
+        <v-card-actions class="px-6 py-4">
           <v-spacer></v-spacer>
-          <v-btn color="grey" variant="outlined" size="small" class="mr-3" @click="cleanConfirmDialog = false">取消</v-btn>
-          <v-btn color="warning" variant="tonal" size="small" @click="confirmCleanSubtitles">确认清理</v-btn>
+          <v-btn color="grey" variant="tonal" size="default" class="mr-3" @click="cleanConfirmDialog = false">取消</v-btn>
+          <v-btn color="warning" variant="flat" size="default" @click="confirmCleanSubtitles">确认清理</v-btn>
           <v-spacer></v-spacer>
         </v-card-actions>
       </v-card>
     </v-dialog>
-  </v-container>
+  </div>
 </template>
 
 <script setup>
@@ -955,63 +947,84 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.bg-primary-lighten-5 {
-  background-color: rgba(var(--v-theme-primary), 0.07);
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.87);
 }
 
-.border {
-  border: thin solid rgba(var(--v-border-color), var(--v-border-opacity));
+.section-card {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  background: #FFFFFF;
+  transition: box-shadow 0.2s ease;
 }
 
-.status-card {
-  background-image: linear-gradient(to right, rgba(var(--v-theme-surface), 0.98), rgba(var(--v-theme-surface), 0.95)), 
-                    repeating-linear-gradient(45deg, rgba(var(--v-theme-primary), 0.03), rgba(var(--v-theme-primary), 0.03) 10px, transparent 10px, transparent 20px);
-  background-attachment: fixed;
-  box-shadow: 0 1px 2px rgba(var(--v-border-color), 0.05) !important;
-  transition: all 0.3s ease;
+.section-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
-.status-card:hover {
-  box-shadow: 0 3px 6px rgba(var(--v-border-color), 0.1) !important;
+.section-card :deep(.v-card-title) {
+  padding: 1rem 1.25rem 0.5rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.section-card :deep(.v-card-text) {
+  padding: 1.25rem;
+}
+
+.progress-card {
+  background: linear-gradient(135deg, rgba(25, 118, 210, 0.05), rgba(25, 118, 210, 0.01));
 }
 
 .directory-content {
-  max-height: 600px;
+  max-height: calc(100vh - 350px);
+  min-height: 300px;
   overflow-y: auto;
 }
 
 .directory-item {
-  border-radius: 4px;
-  transition: all 0.2s ease;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
   cursor: pointer;
 }
 
 .directory-item:hover {
-  background-color: rgba(var(--v-theme-primary), 0.03);
+  background-color: rgba(25, 118, 210, 0.05);
 }
 
 .back-item {
-  border-radius: 4px;
+  border-radius: 10px;
   transition: all 0.2s ease;
   cursor: pointer;
-  border: 1px dashed rgba(var(--v-theme-primary), 0.3);
+  border: 1px dashed rgba(25, 118, 210, 0.3);
+  background-color: rgba(25, 118, 210, 0.02);
 }
 
 .back-item:hover {
-  background-color: rgba(var(--v-theme-primary), 0.05);
-  border-color: rgba(var(--v-theme-primary), 0.5);
+  background-color: rgba(25, 118, 210, 0.06);
+  border-color: rgba(25, 118, 210, 0.5);
 }
 
 .media-item {
-  border-radius: 4px;
-  transition: all 0.2s ease;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
 }
 
 .media-item:hover {
-  background-color: rgba(var(--v-theme-primary), 0.03);
+  background-color: rgba(0, 0, 0, 0.025);
 }
 
 .cursor-pointer {
   cursor: pointer;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

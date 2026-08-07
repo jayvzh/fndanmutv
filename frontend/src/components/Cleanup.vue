@@ -1,104 +1,97 @@
 <template>
-  <v-container fluid class="pa-4">
-    <v-card flat class="rounded border status-card">
-      <v-card-title class="text-caption d-flex align-center px-3 py-2 bg-primary-lighten-5">
-        <v-icon icon="mdi-delete-sweep" color="error" size="small" class="mr-2"></v-icon>
-        残留弹幕字幕清理
-      </v-card-title>
-      <v-card-text class="px-3 py-2">
-        <v-row class="mb-2">
-          <v-col cols="12">
-            <v-alert type="info" density="compact" class="text-caption" variant="tonal">
-              <v-icon icon="mdi-information" size="small" class="mr-1"></v-icon>
-              扫描并清理原视频已删除的残留弹幕字幕文件（.danmu.ass）
-            </v-alert>
-          </v-col>
-        </v-row>
-        
-        <v-row class="mb-3">
-          <v-col cols="12" sm="6">
-            <v-select
-              v-model="selectedPathsList"
-              :items="pathOptions"
-              item-title="label"
-              item-value="value"
-              label="选择扫描路径"
-              density="compact"
-              variant="outlined"
-              hide-details
-              multiple
-              @update:model-value="handlePathChange"
-            ></v-select>
-          </v-col>
-          <v-col cols="12" sm="6">
-            <span v-if="!scanPaths.length" class="text-caption text-error">请先在配置中设置媒体库路径</span>
-          </v-col>
-        </v-row>
-        
-        <div class="d-flex align-center flex-wrap mb-4" style="gap: 8px;">
-          <v-btn color="primary" size="small" variant="tonal" prepend-icon="mdi-search" @click="scanOrphanSubtitles" :loading="scanning" :disabled="!scanPaths.length">
-            扫描残留弹幕
-          </v-btn>
-          <v-btn color="info" size="small" variant="tonal" prepend-icon="mdi-check-all" @click="selectAll" :disabled="!orphanSubtitles.length">
-            全选
-          </v-btn>
-          <v-btn color="error" size="small" variant="tonal" prepend-icon="mdi-delete" @click="cleanSelected" :disabled="!selectedPaths.length" :loading="cleaning">
-            清理选中 ({{ selectedPaths.length }})
-          </v-btn>
-          <v-btn color="error" size="small" variant="tonal" prepend-icon="mdi-delete-forever" @click="cleanAll" :disabled="!orphanSubtitles.length" :loading="cleaning">
-            全部删除
-          </v-btn>
-          <v-spacer></v-spacer>
-          <v-chip v-if="totalFound > 0" size="small" variant="tonal" color="primary">找到: {{ totalFound }} 个</v-chip>
-          <v-chip v-if="cleanedCount > 0" size="small" variant="tonal" color="success">已清理: {{ cleanedCount }} 个</v-chip>
-        </div>
+  <div>
+    <div class="d-flex align-center mb-4">
+      <v-icon icon="mdi-delete-sweep" color="error" size="22" class="mr-2"></v-icon>
+      <span style="font-size: 1.1rem; font-weight: 600;">残留弹幕字幕清理</span>
+    </div>
 
-        <div v-if="scanning" class="text-center py-8">
-          <v-progress-circular indeterminate color="primary" size="64"></v-progress-circular>
-          <p class="mt-2">正在扫描...</p>
-        </div>
+    <v-alert type="info" variant="tonal" class="mb-4">
+      <v-icon icon="mdi-information" class="mr-2"></v-icon>
+      扫描并清理原视频已删除的残留弹幕字幕文件（.danmu.ass）
+    </v-alert>
 
-        <v-data-table
-          v-else
-          :headers="headers"
-          :items="orphanSubtitles"
-          :items-per-page="10"
-          :loading="loading"
-          class="elevation-1"
-          hide-default-footer
-        >
-          <template v-slot:item.select="{ item }">
-            <v-checkbox
-              :value="item.path"
-              v-model="selectedPaths"
-              hide-details
-            ></v-checkbox>
-          </template>
-          <template v-slot:item.path="{ item }">
-            <div class="text-caption" :title="item.path">
-              {{ item.path }}
-            </div>
-          </template>
-          <template v-slot:item.size="{ item }">
-            {{ formatSize(item.size) }}
-          </template>
-          <template v-slot:item.modified_time="{ item }">
-            {{ item.modified_time }}
-          </template>
-        </v-data-table>
+    <v-row class="mb-4">
+      <v-col cols="12" sm="6">
+        <v-select
+          v-model="selectedPathsList"
+          :items="pathOptions"
+          item-title="label"
+          item-value="value"
+          label="选择扫描路径"
+          variant="outlined"
+          hide-details
+          multiple
+          @update:model-value="handlePathChange"
+        ></v-select>
+      </v-col>
+      <v-col cols="12" sm="6" class="d-flex align-center">
+        <span v-if="!scanPaths.length" class="text-error">请先在配置中设置媒体库路径</span>
+      </v-col>
+    </v-row>
 
-        <div v-if="!scanning && totalFound === 0 && !loading && scanPaths.length" class="text-center py-8 text-grey">
-          <v-icon icon="mdi-check-circle" size="48" color="success"></v-icon>
-          <p class="mt-2">没有找到残留弹幕字幕文件</p>
+    <div class="d-flex align-center flex-wrap mb-4" style="gap: 10px;">
+      <v-btn color="primary" variant="tonal" size="default" prepend-icon="mdi-search" @click="scanOrphanSubtitles" :loading="scanning" :disabled="!scanPaths.length">
+        扫描残留弹幕
+      </v-btn>
+      <v-btn color="info" variant="tonal" size="default" prepend-icon="mdi-check-all" @click="selectAll" :disabled="!orphanSubtitles.length">
+        全选
+      </v-btn>
+      <v-btn color="error" variant="tonal" size="default" prepend-icon="mdi-delete" @click="cleanSelected" :disabled="!selectedPaths.length" :loading="cleaning">
+        清理选中 ({{ selectedPaths.length }})
+      </v-btn>
+      <v-btn color="error" variant="tonal" size="default" prepend-icon="mdi-delete-forever" @click="cleanAll" :disabled="!orphanSubtitles.length" :loading="cleaning">
+        全部删除
+      </v-btn>
+      <v-spacer></v-spacer>
+      <v-chip v-if="totalFound > 0" variant="tonal" color="primary" size="default">找到: {{ totalFound }} 个</v-chip>
+      <v-chip v-if="cleanedCount > 0" variant="tonal" color="success" size="default">已清理: {{ cleanedCount }} 个</v-chip>
+    </div>
+
+    <div v-if="scanning" class="text-center py-10">
+      <v-progress-circular indeterminate color="primary" size="72"></v-progress-circular>
+      <p class="mt-4 text-body-1">正在扫描...</p>
+    </div>
+
+    <v-data-table
+      v-else
+      :headers="headers"
+      :items="orphanSubtitles"
+      :items-per-page="10"
+      :loading="loading"
+      density="comfortable"
+      class="cleanup-table"
+      hide-default-footer
+    >
+      <template v-slot:item.select="{ item }">
+        <v-checkbox
+          :value="item.path"
+          v-model="selectedPaths"
+          hide-details
+        ></v-checkbox>
+      </template>
+      <template v-slot:item.path="{ item }">
+        <div class="text-body-2" :title="item.path">
+          {{ item.path }}
         </div>
-        
-        <div v-if="!scanPaths.length && !scanning" class="text-center py-8 text-grey">
-          <v-icon icon="mdi-alert-circle" size="48" color="warning"></v-icon>
-          <p class="mt-2">请先在配置中设置媒体库路径</p>
-        </div>
-      </v-card-text>
-    </v-card>
-  </v-container>
+      </template>
+      <template v-slot:item.size="{ item }">
+        {{ formatSize(item.size) }}
+      </template>
+      <template v-slot:item.modified_time="{ item }">
+        {{ item.modified_time }}
+      </template>
+    </v-data-table>
+
+    <div v-if="!scanning && totalFound === 0 && !loading && scanPaths.length" class="text-center py-10 text-grey">
+      <v-icon icon="mdi-check-circle" size="64" color="success"></v-icon>
+      <p class="mt-3 text-h6">没有找到残留弹幕字幕文件</p>
+    </div>
+
+    <div v-if="!scanPaths.length && !scanning" class="text-center py-10 text-grey">
+      <v-icon icon="mdi-alert-circle" size="64" color="warning"></v-icon>
+      <p class="mt-3 text-h6">请先在配置中设置媒体库路径</p>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -259,23 +252,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.bg-primary-lighten-5 {
-  background-color: rgba(var(--v-theme-primary), 0.07);
-}
-
-.border {
-  border: thin solid rgba(var(--v-border-color), var(--v-border-opacity));
-}
-
-.status-card {
-  background-image: linear-gradient(to right, rgba(var(--v-theme-surface), 0.98), rgba(var(--v-theme-surface), 0.95)), 
-                    repeating-linear-gradient(45deg, rgba(var(--v-theme-primary), 0.03), rgba(var(--v-theme-primary), 0.03) 10px, transparent 10px, transparent 20px);
-  background-attachment: fixed;
-  box-shadow: 0 1px 2px rgba(var(--v-border-color), 0.05) !important;
-  transition: all 0.3s ease;
-}
-
-.status-card:hover {
-  box-shadow: 0 3px 6px rgba(var(--v-border-color), 0.1) !important;
+.cleanup-table {
+  border-radius: 8px;
 }
 </style>

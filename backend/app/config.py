@@ -7,6 +7,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger("danmutv.config")
 
+# 项目根目录（backend/app/config.py -> backend -> root）
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -15,11 +18,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    data_dir: str = "/data"
+    # 本地开发默认使用项目根 data/；Docker 通过环境变量覆盖为 /data
+    data_dir: str = str(_PROJECT_ROOT / "data")
     token: str = ""
     log_level: str = "INFO"
     # 前端构建产物目录，单独使用 FRONTEND_DIST 环境变量
-    frontend_dist: str = "/app/static"
+    frontend_dist: str = str(_PROJECT_ROOT / "frontend" / "dist")
 
     def __init__(self, **values):
         super().__init__(**values)

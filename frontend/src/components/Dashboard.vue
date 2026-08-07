@@ -1,170 +1,157 @@
 <template>
-  <v-container fluid class="pa-4">
+  <div class="dashboard-view">
     <!-- 插件状态栏 -->
-    <v-row class="mb-4">
-      <v-col cols="12">
-        <v-card class="status-card">
-          <v-card-title class="text-caption d-flex align-center px-3 py-2 bg-primary-lighten-5">
-            <v-icon icon="mdi-information" color="primary" size="small" class="mr-2"></v-icon>
-            插件状态
-          </v-card-title>
-          <v-card-text class="px-3 py-2">
-            <v-row>
-              <v-col cols="12" sm="4">
-                <div class="status-item d-flex align-center py-2">
-                  <v-icon :icon="enabled ? 'mdi-check-circle' : 'mdi-close-circle'" 
-                           :color="enabled ? 'success' : 'error'" 
-                           size="small" class="mr-3"></v-icon>
-                  <div class="status-content flex-grow-1">
-                    <div class="text-subtitle-2">插件启用</div>
-                    <div class="text-caption" :class="enabled ? 'text-success' : 'text-error'">{{ enabled ? '已启用' : '未启用' }}</div>
-                  </div>
+    <v-card class="section-card mb-5" elevation="0">
+      <v-card-title class="section-title d-flex align-center">
+        <v-icon icon="mdi-information" color="primary" size="20" class="mr-2"></v-icon>
+        插件状态
+      </v-card-title>
+      <v-card-text class="pt-2">
+        <v-row>
+          <v-col cols="12" sm="4">
+            <div class="status-item d-flex align-center py-3">
+              <v-avatar :color="enabled ? 'success' : 'error'" size="44" class="mr-4">
+                <v-icon :icon="enabled ? 'mdi-check' : 'mdi-close'" size="24" color="white"></v-icon>
+              </v-avatar>
+              <div class="status-content flex-grow-1">
+                <div class="status-label">插件启用</div>
+                <div class="status-value" :class="enabled ? 'text-success' : 'text-error'">{{ enabled ? '已启用' : '未启用' }}</div>
+              </div>
+            </div>
+          </v-col>
+          <v-col cols="12" sm="4">
+            <div class="status-item d-flex align-center py-3">
+              <v-avatar :color="apiConnected ? 'success' : 'error'" size="44" class="mr-4">
+                <v-icon :icon="apiConnected ? 'mdi-web' : 'mdi-web-off'" size="24" color="white"></v-icon>
+              </v-avatar>
+              <div class="status-content flex-grow-1">
+                <div class="status-label">API状态</div>
+                <div class="status-value" :class="apiConnected ? 'text-success' : 'text-error'">{{ apiConnected ? '正常' : '异常' }}</div>
+              </div>
+            </div>
+          </v-col>
+          <v-col cols="12" sm="4">
+            <div class="status-item d-flex align-center py-3">
+              <v-avatar :color="mediaLibraryAccessible ? 'success' : 'error'" size="44" class="mr-4">
+                <v-icon :icon="mediaLibraryAccessible ? 'mdi-folder-check' : 'mdi-folder-alert'" size="24" color="white"></v-icon>
+              </v-avatar>
+              <div class="status-content flex-grow-1">
+                <div class="status-label">媒体库</div>
+                <div class="status-value" :class="mediaLibraryAccessible ? 'text-success' : 'text-error'">
+                  {{ mediaLibraryAccessible ? `可访问 (${mediaLibraryCount})` : '不可访问' }}
                 </div>
-              </v-col>
-              <v-col cols="12" sm="4">
-                <div class="status-item d-flex align-center py-2">
-                  <v-icon :icon="apiConnected ? 'mdi-web' : 'mdi-web-off'" 
-                           :color="apiConnected ? 'success' : 'error'" 
-                           size="small" class="mr-3"></v-icon>
-                  <div class="status-content flex-grow-1">
-                    <div class="text-subtitle-2">API状态</div>
-                    <div class="text-caption" :class="apiConnected ? 'text-success' : 'text-error'">{{ apiConnected ? '正常' : '异常' }}</div>
-                  </div>
-                </div>
-              </v-col>
-              <v-col cols="12" sm="4">
-                <div class="status-item d-flex align-center py-2">
-                  <v-icon :icon="mediaLibraryAccessible ? 'mdi-folder-check' : 'mdi-folder-alert'" 
-                           :color="mediaLibraryAccessible ? 'success' : 'error'" 
-                           size="small" class="mr-3"></v-icon>
-                  <div class="status-content flex-grow-1">
-                    <div class="text-subtitle-2">媒体库</div>
-                    <div class="text-caption" :class="mediaLibraryAccessible ? 'text-success' : 'text-error'">
-                      {{ mediaLibraryAccessible ? `可访问 (${mediaLibraryCount})` : '不可访问' }}
-                    </div>
-                  </div>
-                </div>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
+              </div>
+            </div>
+          </v-col>
+        </v-row>
+      </v-card-text>
+    </v-card>
 
     <!-- 统计信息栏 -->
-    <v-row class="mb-4">
-      <v-col cols="12">
-        <v-card flat class="rounded border">
-          <v-card-title class="text-caption d-flex align-center px-3 py-2 bg-primary-lighten-5">
-            <v-icon icon="mdi-chart-bar" color="primary" size="small" class="mr-2"></v-icon>
-            统计信息
-          </v-card-title>
-          <v-card-text class="px-3 py-2">
-            <v-row>
-              <v-col cols="6" sm="3">
-                <div class="stat-item text-center py-2">
-                  <div class="text-h6 font-weight-bold text-primary">{{ stats.total_files }}</div>
-                  <div class="text-caption text-grey mt-1">媒体库文件</div>
-                </div>
-              </v-col>
-              <v-col cols="6" sm="3">
-                <div class="stat-item text-center py-2">
-                  <div class="text-h6 font-weight-bold text-success">{{ stats.success_count }}</div>
-                  <div class="text-caption text-grey mt-1">已刮削</div>
-                </div>
-              </v-col>
-              <v-col cols="6" sm="3">
-                <div class="stat-item text-center py-2">
-                  <div class="text-h6 font-weight-bold text-error">{{ stats.failed_count }}</div>
-                  <div class="text-caption text-grey mt-1">失败</div>
-                </div>
-              </v-col>
-              <v-col cols="6" sm="3">
-                <div class="stat-item text-center py-2">
-                  <div class="text-h6 font-weight-bold text-warning">{{ stats.retry_tasks_count }}</div>
-                  <div class="text-caption text-grey mt-1">待重试</div>
-                </div>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
+    <v-card class="section-card mb-5" elevation="0">
+      <v-card-title class="section-title d-flex align-center">
+        <v-icon icon="mdi-chart-bar" color="primary" size="20" class="mr-2"></v-icon>
+        统计信息
+      </v-card-title>
+      <v-card-text class="pt-2">
+        <v-row>
+          <v-col cols="6" sm="3">
+            <div class="stat-item text-center py-3">
+              <div class="stat-number text-primary">{{ stats.total_files }}</div>
+              <div class="stat-label text-grey">媒体库文件</div>
+            </div>
+          </v-col>
+          <v-col cols="6" sm="3">
+            <div class="stat-item text-center py-3">
+              <div class="stat-number text-success">{{ stats.success_count }}</div>
+              <div class="stat-label text-grey">已刮削</div>
+            </div>
+          </v-col>
+          <v-col cols="6" sm="3">
+            <div class="stat-item text-center py-3">
+              <div class="stat-number text-error">{{ stats.failed_count }}</div>
+              <div class="stat-label text-grey">失败</div>
+            </div>
+          </v-col>
+          <v-col cols="6" sm="3">
+            <div class="stat-item text-center py-3">
+              <div class="stat-number text-warning">{{ stats.retry_tasks_count }}</div>
+              <div class="stat-label text-grey">待重试</div>
+            </div>
+          </v-col>
+        </v-row>
+      </v-card-text>
+    </v-card>
 
     <!-- 最近运行栏 -->
-    <v-row class="mb-4">
-      <v-col cols="12">
-        <v-card flat class="rounded border">
-          <v-card-title class="text-caption d-flex align-center px-3 py-2 bg-primary-lighten-5">
-            <v-icon icon="mdi-history" color="primary" size="small" class="mr-2"></v-icon>
-            最近运行
-          </v-card-title>
-          <v-card-text class="px-3 py-3">
-            <v-row>
-              <v-col cols="12" sm="6">
-                <div class="d-flex align-center justify-space-between py-2">
-                  <div class="d-flex align-center">
-                    <v-icon icon="mdi-clock-outline" size="small" color="primary" class="mr-2"></v-icon>
-                    <span class="text-body-2">最近运行时间</span>
-                  </div>
-                  <div v-if="lastRun" class="text-body-2 font-weight-bold text-primary">
-                    {{ formatTime(lastRun.timestamp) }}
-                    <v-chip size="x-small" color="primary" variant="tonal" class="ml-2">{{ getTypeLabel(lastRun.type) }}</v-chip>
-                  </div>
-                  <span v-else class="text-body-2 text-grey">暂无记录</span>
-                </div>
-              </v-col>
-              <v-col cols="12" sm="6">
-                <div class="d-flex align-center justify-space-between py-2">
-                  <div class="d-flex align-center">
-                    <v-icon icon="mdi-calendar-clock" size="small" color="warning" class="mr-2"></v-icon>
-                    <span class="text-body-2">下次运行时间</span>
-                  </div>
-                  <div v-if="nextRetryTime" class="text-body-2 font-weight-bold text-warning">
-                    {{ nextRetryTime }}
-                    <v-chip size="x-small" color="warning" variant="tonal" class="ml-2">单个重试</v-chip>
-                  </div>
-                  <span v-else class="text-body-2 text-grey">暂无重试任务</span>
-                </div>
-              </v-col>
-            </v-row>
-            <v-row v-if="lastRun" class="mt-2">
-              <v-col cols="12">
-                <v-btn color="primary" size="small" variant="tonal" @click="triggerRetry" :disabled="!stats.retry_tasks_count">
-                  <v-icon icon="mdi-refresh" class="mr-1"></v-icon>
-                  立即重试 ({{ stats.retry_tasks_count }})
-                </v-btn>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
+    <v-card class="section-card mb-5" elevation="0">
+      <v-card-title class="section-title d-flex align-center">
+        <v-icon icon="mdi-history" color="primary" size="20" class="mr-2"></v-icon>
+        最近运行
+      </v-card-title>
+      <v-card-text class="pt-3">
+        <v-row>
+          <v-col cols="12" sm="6">
+            <div class="d-flex align-center justify-space-between py-2">
+              <div class="d-flex align-center">
+                <v-icon icon="mdi-clock-outline" color="primary" class="mr-2"></v-icon>
+                <span class="text-body-1">最近运行时间</span>
+              </div>
+              <div v-if="lastRun" class="text-body-1 font-weight-bold text-primary d-flex align-center">
+                {{ formatTime(lastRun.timestamp) }}
+                <v-chip size="small" color="primary" variant="tonal" class="ml-2">{{ getTypeLabel(lastRun.type) }}</v-chip>
+              </div>
+              <span v-else class="text-body-1 text-grey">暂无记录</span>
+            </div>
+          </v-col>
+          <v-col cols="12" sm="6">
+            <div class="d-flex align-center justify-space-between py-2">
+              <div class="d-flex align-center">
+                <v-icon icon="mdi-calendar-clock" color="warning" class="mr-2"></v-icon>
+                <span class="text-body-1">下次运行时间</span>
+              </div>
+              <div v-if="nextRetryTime" class="text-body-1 font-weight-bold text-warning d-flex align-center">
+                {{ nextRetryTime }}
+                <v-chip size="small" color="warning" variant="tonal" class="ml-2">单个重试</v-chip>
+              </div>
+              <span v-else class="text-body-1 text-grey">暂无重试任务</span>
+            </div>
+          </v-col>
+        </v-row>
+        <v-row v-if="lastRun" class="mt-2">
+          <v-col cols="12">
+            <v-btn color="primary" variant="tonal" @click="triggerRetry" :disabled="!stats.retry_tasks_count" prepend-icon="mdi-refresh">
+              立即重试 ({{ stats.retry_tasks_count }})
+            </v-btn>
+          </v-col>
+        </v-row>
+      </v-card-text>
+    </v-card>
 
     <!-- 刮削进度 -->
-    <v-row v-if="scrapingStatus.running">
-      <v-col cols="12">
-        <v-card class="bg-primary-lighten-5">
-          <v-card-title class="text-caption d-flex align-center px-3 py-2">
-            <v-icon icon="mdi-loader" color="primary" size="small" class="mr-2 animate-spin"></v-icon>
-            正在刮削中
-          </v-card-title>
-          <v-card-text class="px-3 py-2">
-            <v-progress-linear :value="scrapingStatus.total > 0 ? (scrapingStatus.processed / scrapingStatus.total * 100) : 0" 
-                               color="primary" height="8"></v-progress-linear>
-            <div class="flex justify-between mt-2">
-              <span>当前文件: {{ scrapingStatus.current_file }}</span>
-              <span>{{ scrapingStatus.processed }} / {{ scrapingStatus.total }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span>成功: {{ scrapingStatus.success }} | 失败: {{ scrapingStatus.failed }}</span>
-              <span>耗时: {{ formatDuration(scrapingStatus.duration) }}</span>
-            </div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-  </v-container>
+    <v-card v-if="scrapingStatus.running" class="section-card progress-card" elevation="0">
+      <v-card-title class="section-title d-flex align-center">
+        <v-icon icon="mdi-loader" color="primary" class="mr-2 animate-spin"></v-icon>
+        正在刮削中
+      </v-card-title>
+      <v-card-text class="pt-3">
+        <v-progress-linear
+          :value="scrapingStatus.total > 0 ? (scrapingStatus.processed / scrapingStatus.total * 100) : 0"
+          color="primary"
+          height="10"
+          rounded
+        ></v-progress-linear>
+        <div class="d-flex justify-between mt-3 text-body-2">
+          <span>当前文件: {{ scrapingStatus.current_file }}</span>
+          <span class="font-weight-bold">{{ scrapingStatus.processed }} / {{ scrapingStatus.total }}</span>
+        </div>
+        <div class="d-flex justify-between mt-1 text-body-2">
+          <span>成功: <span class="text-success font-weight-medium">{{ scrapingStatus.success }}</span> | 失败: <span class="text-error font-weight-medium">{{ scrapingStatus.failed }}</span></span>
+          <span>耗时: {{ formatDuration(scrapingStatus.duration) }}</span>
+        </div>
+      </v-card-text>
+    </v-card>
+  </div>
 </template>
 
 <script setup>
@@ -250,51 +237,66 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.bg-primary-lighten-5 {
-  background-color: rgba(var(--v-theme-primary), 0.07);
+.section-card {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  background: #FFFFFF;
+  transition: box-shadow 0.2s ease;
 }
 
-.border {
-  border: thin solid rgba(var(--v-border-color), var(--v-border-opacity));
+.section-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
-.status-card {
-  background-image: linear-gradient(to right, rgba(var(--v-theme-surface), 0.98), rgba(var(--v-theme-surface), 0.95)), 
-                    repeating-linear-gradient(45deg, rgba(var(--v-theme-primary), 0.03), rgba(var(--v-theme-primary), 0.03) 10px, transparent 10px, transparent 20px);
-  background-attachment: fixed;
-  box-shadow: 0 1px 2px rgba(var(--v-border-color), 0.05) !important;
-  transition: all 0.3s ease;
-}
-
-.status-card:hover {
-  box-shadow: 0 3px 6px rgba(var(--v-border-color), 0.1) !important;
+.section-title {
+  font-size: 1rem !important;
+  font-weight: 600;
+  padding: 1rem 1.25rem 0.5rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 .status-item {
-  border-radius: 8px;
-  transition: all 0.2s ease;
-  padding: 0.5rem;
-  margin-bottom: 4px;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
 }
 
 .status-item:hover {
-  background-color: rgba(var(--v-theme-primary), 0.03);
+  background-color: rgba(25, 118, 210, 0.04);
+}
+
+.status-label {
+  font-size: 0.9rem;
+  color: rgba(0, 0, 0, 0.6);
+  margin-bottom: 2px;
+}
+
+.status-value {
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .stat-item {
-  border-radius: 8px;
-  transition: all 0.2s ease;
-  padding: 0.5rem;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
 }
 
 .stat-item:hover {
-  background-color: rgba(var(--v-theme-primary), 0.03);
+  background-color: rgba(25, 118, 210, 0.04);
 }
 
-.text-subtitle-2 {
-  font-size: 14px !important;
-  font-weight: 500;
-  margin-bottom: 2px;
+.stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+
+.progress-card {
+  background: linear-gradient(135deg, rgba(25, 118, 210, 0.04), rgba(25, 118, 210, 0.01));
 }
 
 .animate-spin {

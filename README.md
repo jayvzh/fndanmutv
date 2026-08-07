@@ -64,21 +64,33 @@ services:
 
 ## 本地开发
 
-后端使用 conda `danmu` 环境（Python 3.12）：
+后端使用 conda `danmu` 环境（Python 3.12），前端 Node 18+。推荐用项目根目录的 `dev.sh` 一键启动：
 
 ```bash
+./dev.sh start      # 启动后端(:8021) + 前端(:8017)，自动激活 conda danmu
+./dev.sh status     # 查看状态
+./dev.sh logs       # 查看日志（logs/backend.log、logs/frontend.log）
+./dev.sh restart    # 强制清理端口后重启
+./dev.sh stop       # 停止全部
+```
+
+- 前端：http://localhost:8017 （已配置 `/api` 代理到后端 8021）
+- 后端 API：http://localhost:8021 ，健康检查 http://localhost:8021/health
+- 首次启动若未设置 `DANMUTV_TOKEN`，后端会自动生成临时 Token 并打印到后端日志（`./dev.sh logs backend`）
+
+手动启动方式：
+
+```bash
+# 后端
 conda activate danmu
 pip install -r backend/requirements.txt
 cd backend
-uvicorn app.main:app --reload --port 8000
-```
+uvicorn app.main:app --reload --port 8021
 
-前端：
-
-```bash
+# 前端
 cd frontend
 npm install
-npm run dev   # http://localhost:5173 ，已配置 /api 代理到 8000
+npm run dev   # http://localhost:8017
 ```
 
 运行需要系统安装 `ffmpeg` / `ffprobe`（用于视频时长、分辨率与内嵌字幕提取）。
