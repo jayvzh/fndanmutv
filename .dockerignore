@@ -1,11 +1,13 @@
 references/
-node_modules/
+**/node_modules/
 frontend/dist/
 data/
+logs/
+.pids/
 .git/
 .gitignore
 .trae/
-__pycache__/
+**/__pycache__/
 *.pyc
 *.db
 *.db-wal

@@ -110,9 +110,13 @@ def init_db() -> None:
 
             row = cur.execute("SELECT config_json FROM config WHERE id = 1").fetchone()
             if row is None:
+                default_cfg = AppConfig.default_config()
+                # 用环境变量注入的弹幕 API 地址覆盖代码默认值（Docker 部署）
+                if settings.danmu_api_url:
+                    default_cfg["danmu_api_url"] = settings.danmu_api_url
                 cur.execute(
                     "INSERT INTO config (id, config_json) VALUES (1, ?)",
-                    (json.dumps(AppConfig.default_config(), ensure_ascii=False),),
+                    (json.dumps(default_cfg, ensure_ascii=False),),
                 )
                 logger.info("已写入默认配置")
         _initialized = True

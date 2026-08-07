@@ -1,31 +1,31 @@
+# 完整版：fn-danmutv + 内置 danmu-api
+# 用法：docker compose up -d
+# 访问：http://<host>:8017  默认 Token：fn-danmutv
 services:
   danmutv:
     build: .
-    image: danmutv:latest
-    container_name: danmutv
+    image: jayvzh/fn-danmutv:latest
+    container_name: fn-danmutv
     restart: unless-stopped
     ports:
-      - "8017:8017"
+      - "8017:8000"
     environment:
-      # 访问密码，请务必修改
-      - ADMIN_TOKEN=fn-danmutv
+      - DANMUTV_TOKEN=fn-danmutv
       - DANMUTV_LOG_LEVEL=INFO
-      # 容器内通过服务名访问内置 danmu-api
-      - DANMUTV_DATA_DIR=/data
+      # 完整版通过服务名访问内置 danmu-api
+      - DANMUTV_DANMU_API_URL=http://danmu-api:9321
     volumes:
       - ./data:/data
       # 媒体库，必须可写（弹幕/合并字幕写回视频同目录）
       # 将左侧改为你的宿主机媒体路径：
       - ./media:/media:rw
-    # 若使用下方内置 danmu-api 则保留依赖；指向外部 API 时可删除
     depends_on:
       - danmu-api
 
-  # 弹幕 API 后端（弹弹 play 兼容）。如你已有外部实例，删除本服务，
-  # 并在 DanmuTV「配置」中将弹幕 API 地址指向它（如 http://127.0.0.1:9321）
+  # 弹幕 API 后端（弹弹 play 兼容）
   danmu-api:
     image: ghcr.io/huangxd-/danmu_api:latest
-    container_name: danmu-api
+    container_name: fn-danmu-api
     restart: unless-stopped
     ports:
       - "9321:9321"

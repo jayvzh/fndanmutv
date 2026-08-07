@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     # ADMIN_TOKEN 无环境变量前缀，方便 Docker 部署时直接配置
     admin_token: str = Field(default="", validation_alias="ADMIN_TOKEN")
     log_level: str = "INFO"
+    # 弹幕 API 地址；Docker 中通过 DANMUTV_DANMU_API_URL 注入默认值
+    danmu_api_url: str = ""
     # 前端构建产物目录，单独使用 FRONTEND_DIST 环境变量
     frontend_dist: str = str(_PROJECT_ROOT / "frontend" / "dist")
 
