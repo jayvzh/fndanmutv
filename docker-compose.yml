@@ -1,0 +1,33 @@
+services:
+  danmutv:
+    build: .
+    image: danmutv:latest
+    container_name: danmutv
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # 访问 Token，请务必修改
+      - DANMUTV_TOKEN=changeme-please
+      - DANMUTV_LOG_LEVEL=INFO
+      # 容器内通过服务名访问内置 danmu-api
+      - DANMUTV_DATA_DIR=/data
+    volumes:
+      - ./data:/data
+      # 媒体库，必须可写（弹幕/合并字幕写回视频同目录）
+      # 将左侧改为你的宿主机媒体路径：
+      - /path/to/your/media:/media:rw
+    # 若使用下方内置 danmu-api 则保留依赖；指向外部 API 时可删除
+    depends_on:
+      - danmu-api
+
+  # 弹幕 API 后端（弹弹 play 兼容）。如你已有外部实例，删除本服务，
+  # 并在 DanmuTV「配置」中将弹幕 API 地址指向它（如 http://127.0.0.1:9321）
+  danmu-api:
+    image: ghcr.io/huangxd-/danmu_api:latest
+    container_name: danmu-api
+    restart: unless-stopped
+    ports:
+      - "9321:9321"
+    volumes:
+      - ./danmu-api-data:/data

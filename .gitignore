@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Node / 前端
+node_modules/
+frontend/dist/
+
+# 运行时数据
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# 环境与密钥
+.env
+.env.*
+
+# IDE / 系统
+.idea/
+.vscode/
+.DS_Store
+*.log
+.trae/
+references/

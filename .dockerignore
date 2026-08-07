@@ -1,0 +1,17 @@
+references/
+node_modules/
+frontend/dist/
+data/
+.git/
+.gitignore
+.trae/
+__pycache__/
+*.pyc
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+*.md
+!backend/README.md
+!frontend/README.md
