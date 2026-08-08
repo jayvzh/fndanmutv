@@ -2,12 +2,13 @@
   <div>
     <div class="d-flex align-center mb-4">
       <v-icon icon="mdi-delete-sweep" color="error" size="22" class="mr-2"></v-icon>
-      <span style="font-size: 1.1rem; font-weight: 600;">残留弹幕字幕清理</span>
+      <span class="section-title-text">残留弹幕字幕清理</span>
     </div>
 
-    <v-alert type="info" variant="tonal" class="mb-4">
-      扫描并清理原视频已删除的残留弹幕字幕文件（.danmu.ass）
-    </v-alert>
+    <div class="d-flex align-center mb-4 pa-3 cleanup-hint">
+      <v-icon icon="mdi-information-outline" color="info" size="18" class="mr-2"></v-icon>
+      <span class="text-body-2 text-grey-darken-1">扫描并清理原视频已删除的残留弹幕字幕文件（.danmu.ass）</span>
+    </div>
 
     <v-row class="mb-4">
       <v-col cols="12" sm="6">
@@ -19,7 +20,9 @@
           label="选择扫描路径"
           variant="outlined"
           hide-details
+          density="compact"
           multiple
+          class="cleanup-select"
           @update:model-value="handlePathChange"
         ></v-select>
       </v-col>
@@ -28,22 +31,22 @@
       </v-col>
     </v-row>
 
-    <div class="d-flex align-center flex-wrap mb-4" style="gap: 10px;">
-      <v-btn color="primary" variant="tonal" size="default" prepend-icon="mdi-search" @click="scanOrphanSubtitles" :loading="scanning" :disabled="!scanPaths.length">
-        扫描残留弹幕
+    <div class="d-flex align-center flex-wrap ga-2 mb-4">
+      <v-btn color="primary" variant="tonal" prepend-icon="mdi-radar" @click="scanOrphanSubtitles" :loading="scanning" :disabled="!scanPaths.length">
+        扫描残留
       </v-btn>
-      <v-btn color="info" variant="tonal" size="default" prepend-icon="mdi-check-all" @click="selectAll" :disabled="!orphanSubtitles.length">
+      <v-btn color="info" variant="tonal" prepend-icon="mdi-check-all" @click="selectAll" :disabled="!orphanSubtitles.length">
         全选
       </v-btn>
-      <v-btn color="error" variant="tonal" size="default" prepend-icon="mdi-delete" @click="cleanSelected" :disabled="!selectedPaths.length" :loading="cleaning">
+      <v-btn color="error" variant="tonal" prepend-icon="mdi-delete" @click="cleanSelected" :disabled="!selectedPaths.length" :loading="cleaning">
         清理选中 ({{ selectedPaths.length }})
       </v-btn>
-      <v-btn color="error" variant="tonal" size="default" prepend-icon="mdi-delete-forever" @click="cleanAll" :disabled="!orphanSubtitles.length" :loading="cleaning">
+      <v-btn color="error" variant="tonal" prepend-icon="mdi-delete-forever" @click="cleanAll" :disabled="!orphanSubtitles.length" :loading="cleaning">
         全部删除
       </v-btn>
       <v-spacer></v-spacer>
-      <v-chip v-if="totalFound > 0" variant="tonal" color="primary" size="default">找到: {{ totalFound }} 个</v-chip>
-      <v-chip v-if="cleanedCount > 0" variant="tonal" color="success" size="default">已清理: {{ cleanedCount }} 个</v-chip>
+      <v-chip v-if="totalFound > 0" variant="tonal" color="primary" size="small">找到: {{ totalFound }} 个</v-chip>
+      <v-chip v-if="cleanedCount > 0" variant="tonal" color="success" size="small">已清理: {{ cleanedCount }} 个</v-chip>
     </div>
 
     <div v-if="scanning" class="text-center py-10">
@@ -251,6 +254,24 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.section-title-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.cleanup-hint {
+  background-color: rgba(var(--v-theme-info), 0.06);
+  border-radius: 8px;
+  border-left: 3px solid rgb(var(--v-theme-info));
+}
+
+.cleanup-select :deep(.v-select__selection-text),
+.cleanup-select :deep(.v-select__placeholder),
+.cleanup-select :deep(.v-field__input) {
+  font-size: 0.82rem;
+}
+
 .cleanup-table {
   border-radius: 8px;
 }

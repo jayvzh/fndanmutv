@@ -2,9 +2,12 @@
   <div class="plugin-page">
     <v-card flat class="main-card rounded-lg overflow-hidden">
       <!-- 顶部紧凑工具栏：标题 + 登录/配置 -->
-      <div class="topbar d-flex align-center px-5 py-3">
-        <v-icon icon="mdi-television-play" color="primary" size="26" class="mr-3" />
-        <div class="topbar-title">DanmuTV</div>
+      <div class="topbar d-flex align-center px-5 py-4">
+        <v-icon icon="mdi-television-play" color="primary" size="28" class="mr-3" />
+        <div class="topbar-title">
+          DanmuTV
+          <span class="topbar-subtitle">弹幕刮削影视版</span>
+        </div>
         <v-spacer></v-spacer>
 
         <!-- 已登录：显示配置 + 登出 -->
@@ -14,7 +17,6 @@
             variant="tonal"
             @click="emit('switch')"
             prepend-icon="mdi-cog"
-            size="small"
             class="mr-2"
           >
             配置
@@ -24,7 +26,6 @@
             variant="text"
             @click="emit('logout')"
             prepend-icon="mdi-logout"
-            size="small"
           >
             登出
           </v-btn>
@@ -36,7 +37,6 @@
           variant="tonal"
           @click="loginDialog = true"
           prepend-icon="mdi-login"
-          size="small"
         >
           登录
         </v-btn>
@@ -78,7 +78,7 @@
       <v-divider></v-divider>
 
       <v-card-text class="pa-6">
-        <Dashboard v-if="activeTab === 'dashboard'" />
+        <Dashboard v-if="activeTab === 'dashboard'" @navigate="activeTab = $event" />
         <BrowseView v-else-if="activeTab === 'browse' && authed" @refresh="refreshDashboard" />
         <RetryTasks v-else-if="activeTab === 'retry' && authed" />
         <History v-else-if="activeTab === 'history' && authed" />
@@ -212,10 +212,20 @@ const doLogin = async () => {
 }
 
 .topbar-title {
-  font-size: 1.15rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: rgba(0, 0, 0, 0.87);
   letter-spacing: 0.2px;
+  display: flex;
+  align-items: baseline;
+}
+
+.topbar-subtitle {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.55);
+  margin-left: 0.5rem;
+  letter-spacing: normal;
 }
 
 .main-tabs {
@@ -223,9 +233,9 @@ const doLogin = async () => {
 }
 
 .tab-item {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 500;
-  min-height: 46px;
+  min-height: 48px;
   text-transform: none;
   letter-spacing: normal;
 }

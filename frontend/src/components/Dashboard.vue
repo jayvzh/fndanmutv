@@ -74,7 +74,11 @@
             </div>
           </v-col>
           <v-col cols="6" sm="3">
-            <div class="stat-item text-center py-3">
+            <div
+              class="stat-item text-center py-3"
+              :class="stats.retry_tasks_count > 0 ? 'clickable-stat' : ''"
+              @click="goToRetry"
+            >
               <div class="stat-number text-warning">{{ stats.retry_tasks_count }}</div>
               <div class="stat-label text-grey">待重试</div>
             </div>
@@ -112,17 +116,10 @@
               </div>
               <div v-if="nextRetryTime" class="text-body-1 font-weight-bold text-warning d-flex align-center">
                 {{ nextRetryTime }}
-                <v-chip size="small" color="warning" variant="tonal" class="ml-2">单个重试</v-chip>
+                <v-icon icon="mdi-information-outline" size="16" class="ml-2 text-grey"></v-icon>
               </div>
               <span v-else class="text-body-1 text-grey">暂无重试任务</span>
             </div>
-          </v-col>
-        </v-row>
-        <v-row v-if="lastRun" class="mt-2">
-          <v-col cols="12">
-            <v-btn color="orange-lighten-2" variant="tonal" @click="triggerRetry" :class="{ 'pointer-events-none': !stats.retry_tasks_count }" prepend-icon="mdi-refresh">
-              立即重试 ({{ stats.retry_tasks_count }})
-            </v-btn>
           </v-col>
         </v-row>
       </v-card-text>
@@ -157,6 +154,8 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import api from '../api'
+
+const emit = defineEmits(['navigate'])
 
 const autoScrape = ref(false)
 const apiConnected = ref(false)
@@ -198,12 +197,9 @@ const fetchStatus = async () => {
   }
 }
 
-const triggerRetry = async () => {
-  try {
-    await api.get('/process_retry_tasks')
-    await fetchStatus()
-  } catch (error) {
-    console.error('触发重试失败:', error)
+const goToRetry = () => {
+  if (stats.value.retry_tasks_count > 0) {
+    emit('navigate', 'retry')
   }
 }
 
@@ -282,6 +278,18 @@ onUnmounted(() => {
 
 .stat-item:hover {
   background-color: rgba(25, 118, 210, 0.04);
+}
+
+.clickable-stat {
+  cursor: pointer;
+}
+
+.clickable-stat:hover {
+  background-color: rgba(var(--v-theme-warning), 0.12);
+}
+
+.clickable-stat:hover .stat-number {
+  text-decoration: underline;
 }
 
 .stat-number {

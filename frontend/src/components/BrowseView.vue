@@ -17,49 +17,45 @@
         ></v-text-field>
       </v-col>
     </v-row>
-    <v-row class="mb-4">
-      <v-col cols="12" sm="4" md="3">
-        <v-btn
-          color="primary"
-          size="default"
-          variant="flat"
-          prepend-icon="mdi-download-multiple"
-          :loading="batchStarting"
-          :disabled="scrapingStatus.running"
-          @click="scrapeCurrentDirectory"
-          class="w-full"
-        >
-          刮削本目录
-        </v-btn>
-      </v-col>
-      <v-col cols="12" sm="4" md="3">
-        <v-btn
-          color="info"
-          size="default"
-          variant="tonal"
-          prepend-icon="mdi-bar-chart"
-          :loading="scanningStats"
-          @click="scanDirectoryStats"
-          class="w-full"
-        >
-          扫描统计
-        </v-btn>
-      </v-col>
-      <v-col cols="12" sm="4" md="3">
-        <v-btn
-          color="warning"
-          size="default"
-          variant="tonal"
-          prepend-icon="mdi-trash-can"
-          :loading="batchStarting"
-          :disabled="scrapingStatus.running"
-          @click="cleanCurrentDirectorySubtitles"
-          class="w-full"
-        >
-          清理字幕
-        </v-btn>
-      </v-col>
-    </v-row>
+    <div class="d-flex flex-wrap ga-2 mb-4">
+      <v-btn
+        color="primary"
+        variant="flat"
+        prepend-icon="mdi-download-multiple"
+        :loading="batchStarting"
+        :disabled="scrapingStatus.running"
+        @click="scrapeCurrentDirectory"
+      >
+        刮削本目录
+      </v-btn>
+      <v-btn
+        color="info"
+        variant="tonal"
+        prepend-icon="mdi-clipboard-list-outline"
+        :loading="scanningStats"
+        @click="scanDirectoryStats"
+      >
+        扫描统计
+      </v-btn>
+      <v-btn
+        color="warning"
+        variant="tonal"
+        prepend-icon="mdi-broom"
+        :loading="batchStarting"
+        :disabled="scrapingStatus.running"
+        @click="cleanCurrentDirectorySubtitles"
+      >
+        清理字幕
+      </v-btn>
+      <v-btn
+        color="secondary"
+        variant="tonal"
+        prepend-icon="mdi-refresh"
+        @click="refreshCurrentDir"
+      >
+        刷新
+      </v-btn>
+    </div>
 
     <v-row>
       <v-col cols="12">
@@ -440,6 +436,7 @@ const currentPath = ref('');
 const loading = ref(false);
 const notConfigured = ref(false);
 const pathHistory = ref([]);
+const dirCache = new Map();
 
 const searchKeyword = ref('');
 const scanningStats = ref(false);
@@ -533,18 +530,34 @@ async function getStatus() {
   }
 }
 
-async function navigateToPath(path) {
+async function navigateToPath(path, force = false) {
   try {
     loading.value = true;
     error.value = null;
     notConfigured.value = false;
     searchKeyword.value = '';
 
+    const cacheKey = path || '__root__';
+    if (!force && dirCache.has(cacheKey)) {
+      const cached = dirCache.get(cacheKey);
+      directoryContent.value = cached.content;
+      currentPath.value = cached.currentPath;
+      if (pathHistory.value.length === 0 && cached.isRoot) {
+        pathHistory.value = [];
+      }
+      return;
+    }
+
     if (!path) {
       const data = await api.get('/scan_path');
       if (data && data.success) {
         directoryContent.value = data.data;
         currentPath.value = '';
+        dirCache.set(cacheKey, {
+          content: data.data,
+          currentPath: '',
+          isRoot: data.data.type === 'root'
+        });
         if (data.data.type === 'root') {
           pathHistory.value = [];
         }
@@ -564,6 +577,11 @@ async function navigateToPath(path) {
       if (data && data.success) {
         directoryContent.value = data.data;
         currentPath.value = path;
+        dirCache.set(cacheKey, {
+          content: data.data,
+          currentPath: path,
+          isRoot: false
+        });
         
         if (!pathHistory.value.includes(path)) {
           pathHistory.value.push(path);
@@ -578,6 +596,12 @@ async function navigateToPath(path) {
   } finally {
     loading.value = false;
   }
+}
+
+function refreshCurrentDir() {
+  const cacheKey = currentPath.value || '__root__';
+  dirCache.delete(cacheKey);
+  navigateToPath(currentPath.value, true);
 }
 
 function goBack() {
@@ -729,7 +753,7 @@ async function confirmManualMatch() {
         manualContext.value.item.manual_scope = scope;
       }
       manualDialog.value = false;
-      await navigateToPath(currentPath.value);
+      await navigateToPath(currentPath.value, true);
       emit('refresh');
     } else {
       manualSearchError.value = res?.message || '保存匹配失败';
@@ -802,7 +826,7 @@ async function confirmCleanSubtitles() {
     
     if (res && res.success) {
       successMessage.value = `成功清理 ${res.data?.deleted?.length || 0} 个字幕文件`;
-      await navigateToPath(currentPath.value);
+      await navigateToPath(currentPath.value, true);
       emit('refresh');
     } else {
       error.value = res?.message || '清理字幕失败';
@@ -827,7 +851,7 @@ async function scanDirectoryStats() {
     
     if (res && res.success) {
       successMessage.value = `扫描完成：共 ${res.data.total_files} 个视频文件，已刮削 ${res.data.scraped_files} 个`;
-      await navigateToPath(currentPath.value);
+      await navigateToPath(currentPath.value, true);
       emit('refresh');
     } else {
       error.value = res?.message || '扫描统计失败';
@@ -870,7 +894,7 @@ function startStatusPolling() {
           text: `共 ${total} 个文件，成功 ${success}，失败 ${failed}`,
         },
       }));
-      await navigateToPath(currentPath.value);
+      await navigateToPath(currentPath.value, true);
       emit('refresh');
     }
   }, 3000);
@@ -897,7 +921,7 @@ async function generateDanmu(item) {
       window.dispatchEvent(new CustomEvent('app:notify', {
         detail: { success: true, title: '弹幕生成成功', text: `${name}（${count} 条）` },
       }));
-      await navigateToPath(currentPath.value);
+      await navigateToPath(currentPath.value, true);
       emit('refresh');
     } else {
       console.log('后端返回：', result);
@@ -948,7 +972,7 @@ async function clearManualMatch(item, scopeOverride = null, keepDialog = false) 
           manualDialog.value = false;
         }
       }
-      await navigateToPath(currentPath.value);
+      await navigateToPath(currentPath.value, true);
       emit('refresh');
     } else {
       manualSearchError.value = res?.message || '移除手动匹配失败';

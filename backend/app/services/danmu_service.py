@@ -96,6 +96,14 @@ class DanmuService:
         merged = {**AppConfig.default_config(), **(db_cfg or {})}
         for key in self.DEPRECATED_KEYS:
             merged.pop(key, None)
+        # 旧字段 density(百分比) 迁移到 density_count(目标条数)
+        if "density" in merged and "density_count" not in (db_cfg or {}):
+            old_density = merged.pop("density", None)
+            try:
+                old_density = int(old_density)
+            except (TypeError, ValueError):
+                old_density = 50
+            merged["density_count"] = 0 if old_density >= 100 else 5000
         return merged
 
     # ---------- helpers ----------
@@ -138,6 +146,12 @@ class DanmuService:
             merged["alpha"] = float(merged.get("alpha", 0.7))
         except (TypeError, ValueError):
             merged["alpha"] = 0.7
+        try:
+            merged["density_count"] = int(merged.get("density_count", 5000))
+        except (TypeError, ValueError):
+            merged["density_count"] = 5000
+        # 剔除已废弃的旧 density(百分比) 字段
+        merged.pop("density", None)
 
         self._config = merged
         # 兼容旧配置：enabled 已废弃（工具默认启用），仅用于把旧的 auto_scrape=true 迁移
@@ -472,12 +486,13 @@ class DanmuService:
             "aborted": False,
             "message": message,
         }
-        if self._config.get("enable_history_details"):
+        # 失败时始终记录详情（含错误信息）；成功无额外信息，不记录详情
+        if not success:
             record["details"] = [{
                 "file": os.path.basename(file_path),
-                "result": "success" if success else "failed",
+                "result": "failed",
                 "danmu_count": danmu_count,
-                "message": message,
+                "error": message,
             }]
         self._append_history(record)
 
@@ -518,6 +533,7 @@ class DanmuService:
             "file_path": task.get("file_path"),
             "last_danmu_count": task.get("last_danmu_count", 0),
             "error_type": task.get("error_type", "unknown"),
+            "error_message": task.get("error_message", ""),
             "next_retry_time": next_rt.isoformat() if isinstance(next_rt, datetime) else next_rt,
         }
 
@@ -538,6 +554,7 @@ class DanmuService:
                     "file_path": t.get("file_path", file_path),
                     "last_danmu_count": int(t.get("last_danmu_count", 0) or 0),
                     "error_type": t.get("error_type", "unknown"),
+                    "error_message": t.get("error_message", ""),
                     "next_retry_time": next_dt,
                 }
             except (TypeError, ValueError) as e:
@@ -560,10 +577,15 @@ class DanmuService:
             minutes = intervals[-1]
         if error_type == "rate_limit":
             minutes = max(minutes, 30)
+        elif error_type == "no_match":
+            minutes = max(minutes, 60)
+        elif error_type == "no_data":
+            minutes = max(minutes, 15)
         return datetime.now() + timedelta(minutes=minutes)
 
     def _add_to_retry_if_needed(self, file_path: str, danmu_count: int,
-                                error_type: str = "unknown") -> None:
+                                error_type: str = "unknown",
+                                error_message: str = "") -> None:
         if not self._config.get("enable_retry_task", True):
             return
         norm = self._normalize_path(file_path) or file_path
@@ -576,6 +598,7 @@ class DanmuService:
                 task["retry_count"] += 1
                 task["last_attempt"] = now
                 task["error_type"] = error_type
+                task["error_message"] = error_message
                 task["last_danmu_count"] = danmu_count
                 if task["retry_count"] >= self.MAX_RETRY_TIMES:
                     logger.warning(
@@ -596,6 +619,7 @@ class DanmuService:
                         "file_path": file_path,
                         "last_danmu_count": danmu_count,
                         "error_type": error_type,
+                        "error_message": error_message,
                         "next_retry_time": self._calculate_next_retry_time(1, error_type),
                     }
                     self._retry_tasks[norm] = task
@@ -617,6 +641,7 @@ class DanmuService:
                     "file_path": t["file_path"],
                     "last_danmu_count": t.get("last_danmu_count", 0),
                     "error_type": t.get("error_type", "unknown"),
+                    "error_message": t.get("error_message", ""),
                     "next_retry_time": t.get("next_retry_time", datetime.now()).strftime(
                         "%Y-%m-%d %H:%M:%S"
                     ),
@@ -767,7 +792,7 @@ class DanmuService:
                 random_top_bottom=self._config.get("random_top_bottom", False),
                 top_ratio=self._config.get("top_ratio", 0),
                 bottom_ratio=self._config.get("bottom_ratio", 0),
-                density=self._config.get("density", 100),
+                density_count=self._config.get("density_count", 5000),
                 width_scale=self._config.get("width_scale", 1.0),
                 multi_layer_count=self._config.get("multi_layer_count", 2),
             )
@@ -776,18 +801,15 @@ class DanmuService:
             if isinstance(result, str) and result.startswith("error:"):
                 parts = result.split(":", 2)
                 error_type = parts[1] if len(parts) >= 2 else "unknown"
+                error_message = parts[2] if len(parts) >= 3 else result
                 logger.warning(result)
-                self._add_to_retry_if_needed(file_path, 0, error_type)
-                return result[7:] if error_type == "rate_limit" else result
-
-            if isinstance(result, str) and result.startswith("弹幕数量为0"):
-                self._add_to_retry_if_needed(file_path, 0)
+                self._add_to_retry_if_needed(file_path, 0, error_type, error_message)
                 return result
 
             if os.path.exists(ass_file):
                 count = self.count_danmu_lines_cached(ass_file)
                 if count < self.MIN_DANMU_COUNT:
-                    self._add_to_retry_if_needed(file_path, count)
+                    self._add_to_retry_if_needed(file_path, count, "no_data", "本地弹幕数量不足")
                 else:
                     with self._retry_lock:
                         existed = self._retry_tasks.pop(norm, None)
@@ -798,8 +820,8 @@ class DanmuService:
             return result
         except Exception as e:
             logger.error(f"生成弹幕失败: {e}")
-            self._add_to_retry_if_needed(file_path, 0)
-            return f"生成弹幕失败: {e}"
+            self._add_to_retry_if_needed(file_path, 0, "network", str(e))
+            return f"error:network:生成弹幕失败: {e}"
 
     # ---------- batch scrape ----------
     def _collect_media_files(self, path: str) -> list[str]:
@@ -919,24 +941,33 @@ class DanmuService:
                     self._scrape_progress["current_file"] = os.path.basename(fp)
                 ok = False
                 count = 0
+                error_msg = ""
                 try:
                     result = self.generate_single(fp)
                     ok = isinstance(result, str) and result.endswith(".danmu.chs.ass")
                     if ok and os.path.exists(result):
                         count = self.count_danmu_lines_cached(result)
+                    elif isinstance(result, str) and result.startswith("error:"):
+                        parts = result.split(":", 2)
+                        error_msg = parts[2] if len(parts) >= 3 else result
+                    elif isinstance(result, str):
+                        error_msg = result
                 except Exception as e:
                     logger.error(f"刮削文件失败 {fp}: {e}")
+                    error_msg = str(e)
                 with self._scrape_lock:
                     self._scrape_progress["processed"] += 1
                     if ok:
                         self._scrape_progress["success"] += 1
                     else:
                         self._scrape_progress["failed"] += 1
-                if self._config.get("enable_history_details"):
+                # 错误信息始终记录；成功文件的详情仅在开启"记录历史详情"时记录
+                if not ok or self._config.get("enable_history_details"):
                     details.append({
                         "file": os.path.basename(fp),
                         "result": "success" if ok else "failed",
                         "danmu_count": count,
+                        "error": error_msg,
                     })
                 time.sleep(0.5)
         finally:
@@ -960,7 +991,7 @@ class DanmuService:
                 "duration": summary["duration"],
                 "aborted": aborted,
             }
-            if self._config.get("enable_history_details") and details:
+            if details:
                 record["details"] = details
             self._append_history(record)
 

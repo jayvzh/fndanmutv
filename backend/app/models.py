@@ -40,7 +40,8 @@ class AppConfig(BaseModel):
     random_top_bottom: bool = False
     top_ratio: int = 0
     bottom_ratio: int = 0
-    density: int = 50
+    # 弹幕密度条数：0=全部；其余为目标保留条数（3000/5000/8000）
+    density_count: int = 5000
     width_scale: float = 1.2
 
     @classmethod

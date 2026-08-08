@@ -435,22 +435,20 @@
                     <div class="setting-content flex-grow-1">
                       <div class="d-flex justify-space-between align-center">
                         <div>
-                          <div class="setting-label">弹幕密度</div>
-                          <div class="setting-desc text-grey">随机保留指定比例的弹幕，降低可减少拥挤（100%为全部保留）</div>
+                          <div class="setting-label">弹幕密度条数</div>
+                          <div class="setting-desc text-grey">按目标总条数随机保留非彩色弹幕，彩色弹幕始终保留；总量不足时不裁剪</div>
                         </div>
-                        <v-text-field
-                          v-model.number="editableConfig.density"
-                          type="number"
+                        <v-select
+                          v-model.number="editableConfig.density_count"
+                          :items="densityCountOptions"
+                          item-title="label"
+                          item-value="value"
                           density="comfortable"
                           variant="outlined"
                           hide-details
-                          :min="10"
-                          :max="100"
-                          :step="5"
-                          suffix="%"
                           style="max-width: 140px;"
                           :disabled="saving"
-                        ></v-text-field>
+                        ></v-select>
                       </div>
                     </div>
                   </div>
@@ -568,11 +566,29 @@ const PRESET_FIELDS = [
   'fontsize', 'screen_area', 'alpha', 'duration',
   'enable_multi_layer', 'multi_layer_count',
   'random_top_bottom', 'top_ratio', 'bottom_ratio',
-  'density', 'width_scale',
+  'density_count', 'width_scale',
 ];
 const PRESET_STORAGE_KEY = 'danmutv_danmu_presets';
 const ACTIVE_PRESET_KEY = 'danmutv_active_preset';
 const BUILTIN_DEFAULT_ID = 'default';
+
+// 弹幕密度条数可选项：0 表示全部保留
+const densityCountOptions = [
+  { value: 3000, label: '3000条' },
+  { value: 5000, label: '5000条' },
+  { value: 8000, label: '8000条' },
+  { value: 0, label: '全部' },
+];
+
+// 旧本地预设中 density(百分比) 迁移到 density_count(目标条数)
+function migratePresetDensity(p) {
+  if (p && p.params && 'density' in p.params && !('density_count' in p.params)) {
+    const old = Number(p.params.density);
+    p.params.density_count = old >= 100 ? 0 : 5000;
+    delete p.params.density;
+  }
+  return p;
+}
 
 const BUILTIN_DEFAULT_PARAMS = {
   fontsize: 48,
@@ -584,7 +600,7 @@ const BUILTIN_DEFAULT_PARAMS = {
   random_top_bottom: false,
   top_ratio: 0,
   bottom_ratio: 0,
-  density: 50,
+  density_count: 5000,
   width_scale: 1.2,
 };
 
@@ -605,8 +621,17 @@ const canDeletePreset = computed(
 function loadPresets() {
   try {
     const raw = localStorage.getItem(PRESET_STORAGE_KEY);
-    presets.value = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(presets.value)) presets.value = [];
+    let loaded = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(loaded)) loaded = [];
+    let changed = false;
+    loaded = loaded.map((p) => {
+      const before = JSON.stringify(p);
+      migratePresetDensity(p);
+      if (JSON.stringify(p) !== before) changed = true;
+      return p;
+    });
+    presets.value = loaded;
+    if (changed) persistPresets();
   } catch {
     presets.value = [];
   }
@@ -701,7 +726,7 @@ const defaultConfig = () => ({
   random_top_bottom: false,
   top_ratio: 0,
   bottom_ratio: 0,
-  density: 50,
+  density_count: 5000,
   width_scale: 1.2,
 });
 
@@ -730,7 +755,8 @@ const toEditable = (data) => ({
   random_top_bottom: data?.random_top_bottom ?? false,
   top_ratio: data?.top_ratio ?? 0,
   bottom_ratio: data?.bottom_ratio ?? 0,
-  density: data?.density ?? 100,
+  density_count: data?.density_count
+    ?? (data?.density != null ? (Number(data.density) >= 100 ? 0 : 5000) : 5000),
   width_scale: data?.width_scale ?? 1.0,
 });
 
@@ -811,7 +837,7 @@ async function saveFullConfig() {
       random_top_bottom: editableConfig.random_top_bottom,
       top_ratio: editableConfig.top_ratio,
       bottom_ratio: editableConfig.bottom_ratio,
-      density: editableConfig.density,
+      density_count: editableConfig.density_count,
       width_scale: editableConfig.width_scale,
     };
 

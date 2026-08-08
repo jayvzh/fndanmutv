@@ -66,10 +66,16 @@ def init_db() -> None:
                     last_attempt TEXT,
                     last_danmu_count INTEGER DEFAULT 0,
                     error_type TEXT,
-                    next_retry_time TEXT
+                    next_retry_time TEXT,
+                    error_message TEXT DEFAULT ''
                 )
                 """
             )
+            # 兼容旧库：补充 error_message 列
+            try:
+                cur.execute("ALTER TABLE retry_tasks ADD COLUMN error_message TEXT DEFAULT ''")
+            except Exception:
+                pass
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS manual_matches (
@@ -166,7 +172,7 @@ def save_config_json(cfg: dict) -> None:
 # --- retry_tasks ---
 def load_retry_tasks() -> dict:
     rows = query_all(
-        "SELECT file_path, retry_count, last_attempt, last_danmu_count, error_type, next_retry_time FROM retry_tasks"
+        "SELECT file_path, retry_count, last_attempt, last_danmu_count, error_type, next_retry_time, error_message FROM retry_tasks"
     )
     result = {}
     for r in rows:
@@ -177,6 +183,7 @@ def load_retry_tasks() -> dict:
             "last_danmu_count": r["last_danmu_count"] or 0,
             "error_type": r["error_type"] or "unknown",
             "next_retry_time": r["next_retry_time"],
+            "error_message": r["error_message"] if "error_message" in r.keys() else "",
         }
     return result
 
@@ -184,14 +191,15 @@ def load_retry_tasks() -> dict:
 def upsert_retry_task(file_path: str, task: dict) -> None:
     execute(
         """
-        INSERT INTO retry_tasks (file_path, retry_count, last_attempt, last_danmu_count, error_type, next_retry_time)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO retry_tasks (file_path, retry_count, last_attempt, last_danmu_count, error_type, next_retry_time, error_message)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(file_path) DO UPDATE SET
             retry_count=excluded.retry_count,
             last_attempt=excluded.last_attempt,
             last_danmu_count=excluded.last_danmu_count,
             error_type=excluded.error_type,
-            next_retry_time=excluded.next_retry_time
+            next_retry_time=excluded.next_retry_time,
+            error_message=excluded.error_message
         """,
         (
             file_path,
@@ -200,6 +208,7 @@ def upsert_retry_task(file_path: str, task: dict) -> None:
             task.get("last_danmu_count", 0),
             task.get("error_type", "unknown"),
             task.get("next_retry_time"),
+            task.get("error_message", ""),
         ),
     )
 

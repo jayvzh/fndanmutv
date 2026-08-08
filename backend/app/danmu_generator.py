@@ -458,42 +458,45 @@ class DanmuAPI:
             return None
 
     @classmethod
-    def get_comments(cls, comment_id: str, cache_ttl: Optional[int] = None) -> Optional[Dict]:
+    def get_comments(cls, comment_id: str, cache_ttl: Optional[int] = None) -> Tuple[Optional[Dict], str]:
         """
         获取弹幕内容
         :param comment_id: 弹幕ID
         :param cache_ttl: 缓存时间（分钟），传给中转服务器控制缓存
-        :return: 弹幕数据
+        :return: (弹幕数据, 错误类型)；成功时错误类型为空串，失败时为 rate_limit/network
         """
         try:
             url = f"{cls.get_api_url()}/api/v2/comment/{comment_id}?format=json&duration=true"
             if cache_ttl is not None:
                 url += f"&cache_ttl={cache_ttl}"
-            
+
             response = None
+            last_error = ""
             for retry in range(4):
                 cls._throttle_request()
                 response = requests.get(url, headers=cls.HEADERS, timeout=cls.TIMEOUT)
                 if response.status_code == 200:
                     break
                 elif response.status_code == 429:
+                    last_error = "rate_limit"
                     wait = 3 * (2 ** retry)  # 指数退避：3s, 6s, 12s, 24s
                     logger.warning(f"获取弹幕被限流(429)，等待{wait}秒后重试 ({retry+1}/4)")
                     cls._trigger_rate_limit(wait)
                     time.sleep(wait)
                 else:
+                    last_error = "network"
                     break
-            
+
             if response and response.status_code == 200:
                 result = response.json()
                 if "comments" not in result:
                     result = {"comments": result}
-                return result
-            logger.error(f"获取弹幕失败: {response.text}")
-            return None
+                return result, ""
+            logger.error(f"获取弹幕失败: {response.text if response else '无响应'}")
+            return None, last_error or "network"
         except Exception as e:
             logger.error(f"获取弹幕失败: {e}")
-            return None
+            return None, "network"
 
 class DanmuConverter:
     @staticmethod
@@ -656,7 +659,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                               height: int, fontface: str, fontsize: float, alpha: float, duration: float, screen_area: str = 'full',
                               enable_multi_layer: bool = False,
                               random_top_bottom: bool = False, top_ratio: int = 0, bottom_ratio: int = 0,
-                              density: int = 100,
+                              density_count: int = 0,
                               width_scale: float = 1.0,
                               multi_layer_count: int = 2):
         styleid = 'Danmu'
@@ -714,7 +717,32 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         dropped_top = 0
         dropped_error = 0
         dropped_density = 0
-        
+
+        # 密度条数控制：预扫描统计非彩色（白色）弹幕数，计算整数百分比保留比例
+        # 彩色弹幕全部保留；仅对非彩色弹幕按比例随机淘汰
+        keep_ratio_pct = 100  # 整数百分比，100=全部保留
+        if density_count and density_count > 0:
+            white_count = 0
+            for c in comments:
+                cp = c.get('p', '').split(',')
+                if len(cp) < 3 or not c.get('m', ''):
+                    continue
+                try:
+                    if int(cp[2]) == 16777215:  # 白色
+                        white_count += 1
+                except (ValueError, IndexError):
+                    pass
+            if white_count > density_count:
+                keep_ratio_pct = max(1, int(density_count * 100 / white_count))
+                logger.info(
+                    f"弹幕密度条数: 目标{density_count}条, 非彩色{white_count}条, "
+                    f"按{keep_ratio_pct}%保留非彩色弹幕（彩色弹幕全部保留）"
+                )
+            else:
+                logger.info(
+                    f"弹幕密度条数: 目标{density_count}条, 非彩色{white_count}条, 数量未超限，全部保留"
+                )
+
         with open(output_file, 'w', encoding='utf-8') as f:
             cls.write_ass_head(f, width, height, fontface, fontsize, alpha, styleid, multi_layer=enable_multi_layer, multi_layer_count=multi_layer_count)
             
@@ -735,10 +763,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         dropped_empty += 1
                         continue
 
-                    # 密度控制：随机丢弃部分弹幕（类似fn-danmu的density参数）
-                    if density < 100 and random.random() * 100 >= density:
-                        dropped_density += 1
-                        continue
+                    # 密度条数控制：彩色弹幕全部保留；非彩色弹幕按整数百分比随机保留
+                    if keep_ratio_pct < 100 and color == 16777215:
+                        if random.randint(1, 100) > keep_ratio_pct:
+                            dropped_density += 1
+                            continue
 
                     # ASS颜色格式为 &HBBGGGRR&（BGR），需将RGB转换为BGR
                     r = (color >> 16) & 0xFF
@@ -1537,7 +1566,7 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
                    screen_area: str = 'full', manual_comment_id: Optional[str] = None,
                    tmdb_id_type: int = 0, enable_multi_layer: bool = False,
                    random_top_bottom: bool = False, top_ratio: int = 0, bottom_ratio: int = 0,
-                   density: int = 100,
+                   density_count: int = 0,
                    width_scale: float = 1.0,
                    multi_layer_count: int = 2) -> Optional[str]:
     try:
@@ -1546,17 +1575,19 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
         )
         if not comment_id:
             logger.info(f"未找到对应弹幕 - {file_path}")
-            return "未找到对应弹幕"
+            return "error:no_match:未找到对应弹幕"
 
-        comments_data = DanmuAPI.get_comments(comment_id, cache_ttl=cache_ttl)
+        comments_data, comments_error = DanmuAPI.get_comments(comment_id, cache_ttl=cache_ttl)
         if not comments_data:
-            return "error:rate_limit:未获取到弹幕数据"
+            if comments_error == "rate_limit":
+                return "error:rate_limit:未获取到弹幕数据（429限流）"
+            return "error:network:未获取到弹幕数据（网络错误）"
 
         comments = sorted(comments_data["comments"], key=lambda x: float(x['p'].split(',')[0]))
-        
+
         if len(comments) == 0:
             logger.info(f"弹幕数量为0，跳过生成 - {file_path}")
-            return "弹幕数量为0，跳过生成"
+            return "error:no_data:弹幕数量为0，跳过生成"
 
         # 过滤B站弹幕
         if onlyFromBili:
@@ -1578,7 +1609,7 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
             random_top_bottom=random_top_bottom,
             top_ratio=top_ratio,
             bottom_ratio=bottom_ratio,
-            density=density,
+            density_count=density_count,
             width_scale=width_scale,
             multi_layer_count=multi_layer_count
         )

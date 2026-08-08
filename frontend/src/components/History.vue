@@ -2,7 +2,7 @@
   <div>
     <div class="d-flex align-center mb-4">
       <v-icon icon="mdi-history" color="primary" size="22" class="mr-2"></v-icon>
-      <span style="font-size: 1.1rem; font-weight: 600;">历史记录</span>
+      <span class="section-title-text">历史记录</span>
       <span class="text-grey ml-2">({{ total }} 条)</span>
       <v-spacer></v-spacer>
       <v-btn color="error" variant="tonal" prepend-icon="mdi-delete" @click="clearHistory">
@@ -15,10 +15,24 @@
       :items="history"
       :items-per-page="10"
       :loading="loading"
-      density="comfortable"
-      class="history-table"
+      density="compact"
+      show-expand
+      class="common-table"
       item-key="id"
     >
+      <template v-slot:item.data-table-expand="{ item, internalItem, isExpanded, toggleExpand }">
+        <v-btn
+          v-if="canExpand(item)"
+          icon
+          size="x-small"
+          variant="text"
+          :ripple="false"
+          :aria-label="isExpanded(internalItem) ? '收起' : '展开'"
+          @click="onToggleExpand(item, internalItem, isExpanded, toggleExpand)"
+        >
+          <v-icon :icon="isExpanded(internalItem) ? 'mdi-chevron-up' : 'mdi-chevron-down'" />
+        </v-btn>
+      </template>
       <template v-slot:item.timestamp="{ item }">
         {{ formatTime(item.timestamp) }}
       </template>
@@ -40,24 +54,30 @@
       <template v-slot:item.duration="{ item }">
         {{ formatDuration(item.duration) }}
       </template>
-      <template v-slot:expanded-item="{ item }">
-        <td colspan="7">
-          <div v-if="item.details && item.details.length > 0">
-            <v-data-table
-              :headers="detailHeaders"
-              :items="item.details"
-              hide-default-footer
-              density="comfortable"
-              class="elevation-0"
-            >
-              <template v-slot:item.result="{ item }">
-                <v-icon :icon="item.result === 'success' ? 'mdi-check-circle' : 'mdi-close-circle'"
-                         :color="item.result === 'success' ? 'success' : 'error'"></v-icon>
-              </template>
-            </v-data-table>
-          </div>
-          <div v-else class="text-grey">暂无详情（需在配置中开启"记录历史详情"）</div>
-        </td>
+      <template v-slot:expanded-row="{ columns, item }">
+        <tr>
+          <td :colspan="columns.length">
+            <div v-if="item.details && item.details.length > 0" class="pa-2">
+              <v-data-table
+                :headers="detailHeaders"
+                :items="item.details"
+                hide-default-footer
+                density="compact"
+                class="elevation-0 common-table"
+              >
+                <template v-slot:item.result="{ item: detail }">
+                  <v-icon :icon="detail.result === 'success' ? 'mdi-check-circle' : 'mdi-close-circle'"
+                           :color="detail.result === 'success' ? 'success' : 'error'"></v-icon>
+                </template>
+                <template v-slot:item.error="{ item: detail }">
+                  <span v-if="detail.error" class="text-error text-wrap">{{ detail.error }}</span>
+                  <span v-else class="text-grey">-</span>
+                </template>
+              </v-data-table>
+            </div>
+            <div v-else class="pa-3 text-grey">无详情</div>
+          </td>
+        </tr>
       </template>
     </v-data-table>
 
@@ -77,18 +97,19 @@ const total = ref(0)
 const loading = ref(false)
 
 const headers = [
-  { text: '时间', value: 'timestamp', width: '18%' },
-  { text: '类型', value: 'type', width: '10%' },
-  { text: '路径', value: 'path', width: '30%' },
-  { text: '处理数', value: 'processed', width: '10%' },
-  { text: '结果', value: 'result', width: '15%' },
-  { text: '耗时', value: 'duration', width: '10%' }
+  { title: '时间', value: 'timestamp', width: '18%' },
+  { title: '类型', value: 'type', width: '10%' },
+  { title: '路径', value: 'path', width: '30%' },
+  { title: '处理数', value: 'processed', width: '10%' },
+  { title: '结果', value: 'result', width: '15%' },
+  { title: '耗时', value: 'duration', width: '10%' }
 ]
 
 const detailHeaders = [
-  { text: '文件', value: 'file', width: '70%' },
-  { text: '结果', value: 'result', width: '15%' },
-  { text: '弹幕数', value: 'danmu_count', width: '15%' }
+  { title: '文件', value: 'file', width: '40%' },
+  { title: '结果', value: 'result', width: '10%' },
+  { title: '弹幕数', value: 'danmu_count', width: '10%' },
+  { title: '错误信息', value: 'error', width: '40%' }
 ]
 
 const fetchHistory = async () => {
@@ -147,13 +168,62 @@ const getTypeColor = (type) => {
   return colors[type] || 'info'
 }
 
+// 仅当存在详情（有错误信息，或开启详情开关时记录的成功项）时才显示展开按钮
+const canExpand = (item) => {
+  return !!(item && item.details && item.details.length > 0)
+}
+
+// 展开/收起单行（使用 internalItem，Vuetify 内部对象），带排查日志
+const onToggleExpand = (item, internalItem, isExpanded, toggleExpand) => {
+  const before = isExpanded(internalItem)
+  console.log('[History] toggle expand clicked', {
+    id: item?.id,
+    type: item?.type,
+    detailsLen: item?.details?.length,
+    beforeExpanded: before,
+    internalItemValue: !!internalItem?.value
+  })
+  if (!internalItem) {
+    console.error('[History] internalItem 缺失，无法切换展开状态')
+    return
+  }
+  toggleExpand(internalItem)
+  // 下一帧确认状态
+  requestAnimationFrame(() => {
+    console.log('[History] after toggle, isExpanded =', isExpanded(internalItem))
+  })
+}
+
 onMounted(() => {
   fetchHistory()
 })
 </script>
 
 <style scoped>
-.history-table {
+.section-title-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.common-table {
   border-radius: 8px;
+}
+
+.common-table :deep(thead th) {
+  background-color: rgba(var(--v-theme-primary), 0.08) !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+  color: rgb(var(--v-theme-on-surface)) !important;
+}
+
+.common-table :deep(tbody td) {
+  font-size: 0.8rem !important;
+}
+
+.text-wrap {
+  white-space: normal;
+  word-break: break-word;
 }
 </style>

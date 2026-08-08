@@ -51,8 +51,14 @@ def generate_danmu(file_path: str = Query(...), svc: DanmuService = Depends(get_
                                   message="弹幕生成失败")
         return ApiResponse.fail("弹幕生成失败")
     if isinstance(result, str) and not result.endswith(".ass"):
-        svc.record_single_history(file_path, success=False, danmu_count=0, message=result)
-        return ApiResponse.fail(result)
+        # result 可能为 "error:<type>:<message>"，提取可读消息
+        if result.startswith("error:"):
+            parts = result.split(":", 2)
+            msg = parts[2] if len(parts) >= 3 else result
+        else:
+            msg = result
+        svc.record_single_history(file_path, success=False, danmu_count=0, message=msg)
+        return ApiResponse.fail(msg)
     ass_file = f"{file_path.rsplit('.', 1)[0]}.danmu.chs.ass"
     count = svc.count_danmu_lines_cached(ass_file) if _os.path.exists(ass_file) else 0
     if count == 0:
