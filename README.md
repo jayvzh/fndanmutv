@@ -16,6 +16,8 @@ MoviePilot三方插件市场：<https://github.com/jxxghp/MoviePilot-Plugins>
 
 - 支持电视剧、电影、动漫等多种媒体类型的弹幕获取
 - 多层弹幕效果，可选 2 层/3 层，彩色弹幕优先显示
+- 弹幕参数预设方案管理，支持保存/加载/删除/覆盖
 - 智能缓存重试策略，优化限流处理
+- 目录浏览缓存与刷新，操作反馈提示
 
 **注意：需要自行准备** **[danmu-api](https://github.com/huangxd-/danmu_api)** **后端服务。**

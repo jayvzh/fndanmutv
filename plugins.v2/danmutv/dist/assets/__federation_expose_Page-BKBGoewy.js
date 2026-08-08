@@ -108,7 +108,7 @@ const triggerRetry = async () => {
 
 const formatTime = (timestamp) => {
   if (!timestamp) return ''
-  return new Date(timestamp).toLocaleString('zh-CN')
+  return new Date(timestamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
 };
 
 const formatDuration = (seconds) => {
@@ -2505,7 +2505,7 @@ const clearHistory = async () => {
 
 const formatTime = (timestamp) => {
   if (!timestamp) return ''
-  return new Date(timestamp).toLocaleString('zh-CN')
+  return new Date(timestamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
 };
 
 const formatDuration = (seconds) => {

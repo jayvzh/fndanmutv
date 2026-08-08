@@ -3188,7 +3188,7 @@ function format(value, formatString, locale, formats) {
       return new Intl.DateTimeFormat(locale, options).format(newDate).replace(/, /g, ' ');
     default:
       options = customFormat ?? {
-        timeZone: 'UTC',
+        timeZone: 'Asia/Shanghai',
         timeZoneName: 'short'
       };
   }
