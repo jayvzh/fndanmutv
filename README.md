@@ -38,6 +38,7 @@ services:
     environment:
       - DANMUTV_TOKEN=fn-danmutv
       - DANMUTV_LOG_LEVEL=INFO
+      - TZ=Asia/Shanghai
       - DANMUTV_PORT=8017
       - DANMUTV_DANMU_API_URL=http://danmu-api:9321
     volumes:
@@ -74,6 +75,7 @@ services:
     environment:
       - DANMUTV_TOKEN=fn-danmutv
       - DANMUTV_LOG_LEVEL=INFO
+      - TZ=Asia/Shanghai
       - DANMUTV_PORT=8017
       - DANMUTV_DANMU_API_URL=http://127.0.0.1:9321
     volumes:

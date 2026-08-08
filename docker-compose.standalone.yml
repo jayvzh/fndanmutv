@@ -1,11 +1,5 @@
 # 独立版：仅 fn-danmutv，不包含 danmu-api
 # 适用于你已有外部弹幕 API 的场景。
-# 用法：docker compose -f docker-compose.standalone.yml up -d
-# 访问：http://127.0.0.1:8017  默认 Token：fn-danmutv
-#
-# 使用 host 网络模式：容器直接使用宿主机网络栈，
-# 127.0.0.1 即宿主机，可直接访问宿主机上运行的 danmu-api（127.0.0.1:9321）。
-# 因此无需 ports 映射；容器内监听端口由 DANMUTV_PORT 控制（默认 8017）。
 # 若你的 danmu-api 在其他主机，请修改 DANMUTV_DANMU_API_URL。
 services:
   danmutv:
@@ -19,10 +13,9 @@ services:
       - DANMUTV_LOG_LEVEL=INFO
       # host 网络模式下直接监听宿主机 8017
       - DANMUTV_PORT=8017
+      - TZ=Asia/Shanghai
       # 默认指向宿主机上运行的 danmu-api（127.0.0.1 即宿主机）
       - DANMUTV_DANMU_API_URL=http://127.0.0.1:9321
-      # 媒体库根目录，与下方 volume 挂载对应
-      - DANMUTV_MEDIA_DIR=/media
     volumes:
       - ./data:/data
       # 媒体库，必须可写（弹幕/合并字幕写回视频同目录）：
