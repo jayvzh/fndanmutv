@@ -8,10 +8,11 @@ services:
     container_name: fn-danmutv
     restart: unless-stopped
     ports:
-      - "8017:8000"
+      - "8017:8017"
     environment:
       - DANMUTV_TOKEN=fn-danmutv
       - DANMUTV_LOG_LEVEL=INFO
+      - DANMUTV_PORT=8017
       # 完整版通过服务名访问内置 danmu-api
       - DANMUTV_DANMU_API_URL=http://danmu-api:9321
     volumes:

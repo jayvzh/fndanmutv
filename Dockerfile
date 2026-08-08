@@ -12,12 +12,14 @@ RUN export http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= all_proxy= ALL_PROX
 
 # ---- Stage 2: 解压静态 ffmpeg/ffprobe（自包含，无 Mesa/LLVM 等图形依赖） ----
 # 来源：eugeneware/ffmpeg-static b6.1.1（基于 johnvansickle 静态构建，GPL，ffmpeg 7.0.2）
-# 二进制随仓库分发于 docker/ffmpeg/，避免构建时联网；按 TARGETARCH 选择 x64/arm64
+# 二进制不入库，构建前下载到 references/ffmpeg/（见 README），按 TARGETARCH 选择 x64/arm64
 FROM alpine:3.20 AS ffmpeg
 ARG TARGETARCH
 WORKDIR /out
-COPY docker/ffmpeg/ffmpeg-linux-x64.gz docker/ffmpeg/ffprobe-linux-x64.gz \
-     docker/ffmpeg/ffmpeg-linux-arm64.gz docker/ffmpeg/ffprobe-linux-arm64.gz /tmp/
+# 静态 ffmpeg/ffprobe 二进制不入库；构建前需按 README 指引下载到 references/ffmpeg/。
+# 文件缺失时此处 COPY 会直接报错终止。
+COPY references/ffmpeg/ffmpeg-linux-x64.gz references/ffmpeg/ffprobe-linux-x64.gz \
+     references/ffmpeg/ffmpeg-linux-arm64.gz references/ffmpeg/ffprobe-linux-arm64.gz /tmp/
 RUN set -eux; \
     case "${TARGETARCH}" in \
         amd64) SUFFIX=x64 ;; \
@@ -60,19 +62,23 @@ COPY --from=frontend /app/dist ./static
 COPY --from=ffmpeg /out/ffmpeg /out/ffprobe /usr/local/bin/
 
 # 默认配置：开箱即用（不修改也能直接运行）
+# Token 不在镜像中内置，运行时通过 DANMUTV_TOKEN/ADMIN_TOKEN 注入；
+# 未设置时后端自动生成随机 Token 并打印到日志（见 app/config.py）
+# 容器内监听端口可通过 DANMUTV_PORT 覆盖（默认 8017）
 ENV DANMUTV_DATA_DIR=/data \
     DANMUTV_FRONTEND_DIST=/app/static \
-    DANMUTV_TOKEN=fn-danmutv \
     DANMUTV_LOG_LEVEL=INFO \
+    DANMUTV_PORT=8017 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 VOLUME ["/data"]
-EXPOSE 8000
+EXPOSE 8017
 
-# 用 Python 标准库做健康检查，无需安装 curl
+# 用 Python 标准库做健康检查，无需安装 curl；端口读取 DANMUTV_PORT
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).status == 200 else 1)"
+    CMD python -c "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ.get('DANMUTV_PORT','8017'), timeout=5).status == 200 else 1)"
 
 # 单 worker：APScheduler 后台任务不能多进程重复触发
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# exec 让 uvicorn 接管 PID 1 以正常接收信号
+CMD exec uvicorn app.main:app --host 0.0.0.0 --port ${DANMUTV_PORT}

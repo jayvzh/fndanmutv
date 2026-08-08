@@ -1,7 +1,12 @@
-references/
+# references/ 仅作为只读参考，不进构建上下文；
+# 但其中 ffmpeg/ 存放构建镜像所需的静态二进制，需放通
+references/*
+!references/ffmpeg/
 **/node_modules/
 frontend/dist/
 data/
+media/
+danmu-api-data/
 logs/
 .pids/
 .git/

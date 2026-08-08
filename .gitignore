@@ -11,6 +11,8 @@ frontend/dist/
 
 # 运行时数据
 data/
+media/
+danmu-api-data/
 *.db
 *.db-wal
 *.db-shm
@@ -28,4 +30,3 @@ logs/
 *.log
 .trae/
 references/
-docker/ffmpeg/
