@@ -1,0 +1,13 @@
+{
+    ".url": {
+        "danmutv.Application": {
+            "title": "DanmuTV",
+            "icon": "images/icon_{0}.png",
+            "type": "iframe",
+            "protocol": "http",
+            "port": "8017",
+            "url": "/",
+            "allUsers": true
+        }
+    }
+}

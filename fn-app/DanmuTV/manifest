@@ -1,0 +1,13 @@
+appname=danmutv
+version=1.0.0
+display_name=DanmuTV 弹幕刮削
+desc=为本地影视库自动匹配、刮削弹幕，并将弹幕/合并字幕写回视频同目录。
+platform=all
+source=thirdparty
+maintainer=jayvzh
+distributor=jayvzh
+desktop_uidir=ui
+desktop_applaunchname=danmutv.Application
+service_port=8017
+checkport=false
+ctl_stop=true

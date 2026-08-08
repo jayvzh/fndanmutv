@@ -1,0 +1,24 @@
+services:
+  danmutv:
+    image: jayvzh/fn-danmutv:latest
+    container_name: fn-danmutv
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT}:8017"
+    environment:
+      - DANMUTV_TOKEN=${DANMUTV_TOKEN}
+      - DANMUTV_LOG_LEVEL=INFO
+      - DANMUTV_PORT=8017
+      - DANMUTV_DANMU_API_URL=${DANMUTV_DANMU_API_URL}
+    volumes:
+      - "${TRIM_PKGVAR}:/data"
+      # 媒体库，必须可写（弹幕/合并字幕写回视频同目录）
+      - "${MEDIA_PATH}:/media:rw"
+
+  # 弹幕 API 后端（弹弹 play 兼容）。仅在未勾选「使用本机已有弹幕API」时部署。
+  danmu-api:
+    profiles: ["bundled"]
+    image: logvar/danmu-api:latest
+    restart: unless-stopped
+    volumes:
+      - "${TRIM_PKGVAR}/danmu-api:/data"

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
 
     # 本地开发默认使用项目根 data/；Docker 通过环境变量覆盖为 /data
     data_dir: str = str(_PROJECT_ROOT / "data")
+    # 媒体库根目录；Docker 中通过 DANMUTV_MEDIA_DIR=/media 注入，作为默认刮削路径
+    media_dir: str = ""
     token: str = ""
     # ADMIN_TOKEN 无环境变量前缀，方便 Docker 部署时直接配置
     admin_token: str = Field(default="", validation_alias="ADMIN_TOKEN")

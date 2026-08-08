@@ -1,6 +1,9 @@
+import os
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
+
+from app.config import settings
 
 
 class ApiResponse(BaseModel):
@@ -46,7 +49,13 @@ class AppConfig(BaseModel):
 
     @classmethod
     def default_config(cls) -> dict:
-        return cls().model_dump()
+        cfg = cls().model_dump()
+        # Docker 通过 DANMUTV_MEDIA_DIR 注入媒体库路径（如 /media），
+        # 若用户未显式配置 path 且该目录存在，则作为默认刮削路径
+        media_dir = (settings.media_dir or "").strip()
+        if media_dir and not cfg.get("path") and os.path.isdir(media_dir):
+            cfg["path"] = media_dir
+        return cfg
 
 
 class AnimeInfo(BaseModel):

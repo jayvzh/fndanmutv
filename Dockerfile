@@ -66,6 +66,7 @@ COPY --from=ffmpeg /out/ffmpeg /out/ffprobe /usr/local/bin/
 # 未设置时后端自动生成随机 Token 并打印到日志（见 app/config.py）
 # 容器内监听端口可通过 DANMUTV_PORT 覆盖（默认 8017）
 ENV DANMUTV_DATA_DIR=/data \
+    DANMUTV_MEDIA_DIR=/media \
     DANMUTV_FRONTEND_DIST=/app/static \
     DANMUTV_LOG_LEVEL=INFO \
     DANMUTV_PORT=8017 \

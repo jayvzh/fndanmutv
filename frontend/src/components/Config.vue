@@ -791,10 +791,11 @@ async function testApiConnection() {
   apiTestResult.value = null;
   try {
     const res = await api.get('/api_status', { api_url: editableConfig.danmu_api_url });
-    if (res && res.success) {
-      apiTestResult.value = { ok: true, message: res.message || 'API 连接成功' };
+    const result = res?.data;
+    if (result && result.reachable) {
+      apiTestResult.value = { ok: true, message: result.message || 'API 连接成功' };
     } else {
-      apiTestResult.value = { ok: false, message: res?.message || 'API 连接失败' };
+      apiTestResult.value = { ok: false, message: result?.message || 'API 连接失败' };
     }
   } catch (err) {
     apiTestResult.value = { ok: false, message: err?.message || 'API 检测请求失败' };

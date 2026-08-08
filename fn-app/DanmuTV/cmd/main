@@ -1,0 +1,28 @@
+#!/bin/bash
+
+CONTAINER_NAME="fn-danmutv"
+
+is_running() {
+    docker inspect "$CONTAINER_NAME" 2>/dev/null | grep -q '"Status": "running"'
+}
+
+case "$1" in
+    start)
+        # Docker 应用由应用中心执行 compose 启动，无需额外操作
+        exit 0
+        ;;
+    stop)
+        # Docker 应用由应用中心执行 compose 停止，无需额外操作
+        exit 0
+        ;;
+    status)
+        if is_running; then
+            exit 0
+        fi
+        exit 3
+        ;;
+    *)
+        echo "Unknown command: $1" > "$TRIM_TEMP_LOGFILE"
+        exit 1
+        ;;
+esac

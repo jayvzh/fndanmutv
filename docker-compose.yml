@@ -15,6 +15,8 @@ services:
       - DANMUTV_PORT=8017
       # 完整版通过服务名访问内置 danmu-api
       - DANMUTV_DANMU_API_URL=http://danmu-api:9321
+      # 媒体库根目录，与下方 volume 挂载对应
+      - DANMUTV_MEDIA_DIR=/media
     volumes:
       - ./data:/data
       # 媒体库，必须可写（弹幕/合并字幕写回视频同目录）
@@ -25,7 +27,7 @@ services:
 
   # 弹幕 API 后端（弹弹 play 兼容）
   danmu-api:
-    image: ghcr.io/huangxd-/danmu_api:latest
+    image: logvar/danmu-api:latest
     container_name: fn-danmu-api
     restart: unless-stopped
     ports:

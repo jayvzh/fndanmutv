@@ -21,6 +21,8 @@ services:
       - DANMUTV_PORT=8017
       # 默认指向宿主机上运行的 danmu-api（127.0.0.1 即宿主机）
       - DANMUTV_DANMU_API_URL=http://127.0.0.1:9321
+      # 媒体库根目录，与下方 volume 挂载对应
+      - DANMUTV_MEDIA_DIR=/media
     volumes:
       - ./data:/data
       # 媒体库，必须可写（弹幕/合并字幕写回视频同目录）：

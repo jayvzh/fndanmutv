@@ -1,0 +1,103 @@
+#!/bin/bash
+# 生成 docker-compose 运行所需的 .env（位于 docker 目录，compose 自动读取）
+set -euo pipefail
+
+DOCKER_DIR="${TRIM_APPDEST}/docker"
+ENV_FILE="${DOCKER_DIR}/.env"
+STATE_DIR="${TRIM_PKGVAR}/.fnstate"
+UI_CONFIG="${TRIM_APPDEST}/ui/config"
+
+mkdir -p "${DOCKER_DIR}" "${TRIM_PKGVAR}" "${STATE_DIR}"
+
+# 读取已持久化的值（升级/改配时复用）
+load_state() {
+    local key="$1"
+    local f="${STATE_DIR}/${key}"
+    [ -f "$f" ] && cat "$f" || true
+}
+
+save_state() {
+    local key="$1" val="$2"
+    printf '%s' "$val" > "${STATE_DIR}/${key}"
+    chmod 600 "${STATE_DIR}/${key}"
+}
+
+# switch 字段可能为 true/false（兼容大小写、on/1）
+is_true() {
+    case "$(echo "$1" | tr '[:upper:]' '[:lower:]')" in
+        true|on|1) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# 应用端口：向导优先，否则已有值，否则默认 8017
+APP_PORT="${wizard_port:-}"
+[ -z "${APP_PORT}" ] && APP_PORT=$(load_state app_port)
+[ -z "${APP_PORT}" ] && APP_PORT="8017"
+
+# 访问密码：向导优先，否则已有值，否则默认 fn-danmutv
+DANMUTV_TOKEN="${wizard_token:-}"
+[ -z "${DANMUTV_TOKEN}" ] && DANMUTV_TOKEN=$(load_state token)
+[ -z "${DANMUTV_TOKEN}" ] && DANMUTV_TOKEN="fn-danmutv"
+
+# 媒体库路径：向导优先，否则已有值，否则默认共享目录
+MEDIA_PATH="${wizard_media_path:-}"
+[ -z "${MEDIA_PATH}" ] && MEDIA_PATH=$(load_state media_path)
+[ -z "${MEDIA_PATH}" ] && MEDIA_PATH="/vol1/@appshare/DanmuTV/media"
+
+# 是否使用外部已有弹幕API：向导优先，否则已有值，否则默认 false（部署内置）
+USE_EXTERNAL_API="${wizard_use_external_api:-}"
+[ -z "${USE_EXTERNAL_API}" ] && USE_EXTERNAL_API=$(load_state use_external_api)
+[ -z "${USE_EXTERNAL_API}" ] && USE_EXTERNAL_API="false"
+
+# 弹幕API地址
+if is_true "${USE_EXTERNAL_API}"; then
+    EXTERNAL_API_URL="${wizard_external_api_url:-}"
+    [ -z "${EXTERNAL_API_URL}" ] && EXTERNAL_API_URL=$(load_state external_api_url)
+    if [ -z "${EXTERNAL_API_URL}" ]; then
+        echo "external api url is required when using existing api" > "$TRIM_TEMP_LOGFILE"
+        exit 1
+    fi
+    DANMUTV_DANMU_API_URL="${EXTERNAL_API_URL}"
+    COMPOSE_PROFILES=""   # 不部署内置 danmu-api
+else
+    DANMUTV_DANMU_API_URL="http://danmu-api:9321"
+    COMPOSE_PROFILES="bundled"  # 启动内置 danmu-api 服务
+fi
+
+# 校验端口为数字
+if ! [[ "${APP_PORT}" =~ ^[0-9]+$ ]] || [ "${APP_PORT}" -lt 1 ] || [ "${APP_PORT}" -gt 65535 ]; then
+    echo "invalid port: ${APP_PORT}" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+fi
+
+# 媒体目录不存在则创建（默认路径需要建；用户自定义路径建失败则报错）
+if [ ! -d "${MEDIA_PATH}" ]; then
+    mkdir -p "${MEDIA_PATH}" 2>/dev/null || {
+        echo "cannot create media path: ${MEDIA_PATH}" > "$TRIM_TEMP_LOGFILE"
+        exit 1
+    }
+fi
+
+# 持久化当前值
+save_state app_port "${APP_PORT}"
+save_state token "${DANMUTV_TOKEN}"
+save_state media_path "${MEDIA_PATH}"
+save_state use_external_api "${USE_EXTERNAL_API}"
+is_true "${USE_EXTERNAL_API}" && save_state external_api_url "${DANMUTV_DANMU_API_URL}"
+
+cat > "${ENV_FILE}" <<EOF
+APP_PORT=${APP_PORT}
+DANMUTV_TOKEN=${DANMUTV_TOKEN}
+MEDIA_PATH=${MEDIA_PATH}
+COMPOSE_PROFILES=${COMPOSE_PROFILES}
+DANMUTV_DANMU_API_URL=${DANMUTV_DANMU_API_URL}
+EOF
+chmod 600 "${ENV_FILE}"
+
+# 同步桌面入口端口，确保应用卡片用用户配置的端口打开
+if [ -f "${UI_CONFIG}" ]; then
+    sed -i -E "s/(\"port\"[[:space:]]*:[[:space:]]*\")[0-9]+(\")/\1${APP_PORT}\2/" "${UI_CONFIG}"
+fi
+
+exit 0

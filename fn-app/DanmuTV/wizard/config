@@ -1,0 +1,57 @@
+[
+  {
+    "stepTitle": "基本设置",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "以下设置均为选填，留空则保持当前值不变。"
+      },
+      {
+        "type": "text",
+        "field": "wizard_port",
+        "label": "应用端口（留空保持当前端口）",
+        "initValue": "",
+        "rules": [
+          {
+            "pattern": "^[0-9]*$",
+            "message": "请输入数字端口号"
+          }
+        ]
+      },
+      {
+        "type": "password",
+        "field": "wizard_token",
+        "label": "访问密码（留空保持当前密码）",
+        "initValue": ""
+      },
+      {
+        "type": "text",
+        "field": "wizard_media_path",
+        "label": "媒体库路径（留空保持当前路径）",
+        "initValue": ""
+      },
+      {
+        "type": "radio",
+        "field": "wizard_use_external_api",
+        "label": "使用本机已有的弹幕API（留空保持当前设置）",
+        "initValue": "",
+        "options": [
+          {
+            "label": "否，自动部署内置弹幕API",
+            "value": "false"
+          },
+          {
+            "label": "是，使用已有的弹幕API",
+            "value": "true"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_external_api_url",
+        "label": "已有弹幕API地址（留空保持当前地址）",
+        "initValue": ""
+      }
+    ]
+  }
+]
