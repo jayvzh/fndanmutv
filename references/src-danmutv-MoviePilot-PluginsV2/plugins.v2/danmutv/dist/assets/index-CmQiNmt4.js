@@ -13985,7 +13985,7 @@ function useCalendarBase(props) {
       return props.dayFormat;
     }
     return createNativeLocaleFormatter(locale.current.value, () => ({
-      timeZone: 'UTC',
+      timeZone: 'Asia/Shanghai',
       day: 'numeric'
     }));
   });
@@ -13994,7 +13994,7 @@ function useCalendarBase(props) {
       return props.weekdayFormat;
     }
     return createNativeLocaleFormatter(locale.current.value, (_tms, short) => ({
-      timeZone: 'UTC',
+      timeZone: 'Asia/Shanghai',
       weekday: short ? 'short' : 'long'
     }));
   });
@@ -14133,14 +14133,14 @@ function useCalendarWithIntervals(props) {
       return props.intervalFormat;
     }
     return createNativeLocaleFormatter(base.locale.current.value, (tms, short) => !short ? {
-      timeZone: 'UTC',
+      timeZone: 'Asia/Shanghai',
       hour: '2-digit',
       minute: '2-digit'
     } : tms.minute === 0 ? {
-      timeZone: 'UTC',
+      timeZone: 'Asia/Shanghai',
       hour: 'numeric'
     } : {
-      timeZone: 'UTC',
+      timeZone: 'Asia/Shanghai',
       hour: 'numeric',
       minute: '2-digit'
     });
@@ -14679,7 +14679,7 @@ const VCalendarWeekly = defineComponent$1({
         return props.monthFormat;
       }
       return createNativeLocaleFormatter(base.locale.current.value, (_tms, short) => ({
-        timeZone: 'UTC',
+        timeZone: 'Asia/Shanghai',
         month: short ? 'short' : 'long'
       }));
     });
@@ -15434,7 +15434,7 @@ function useCalendarWithEvents(props, slots, attrs) {
     const singline = diffMinutes(event.start, event.end) <= parsedEventOverlapThreshold.value;
     const formatTime = (withTime, ampm) => {
       const formatter = base.getFormatter({
-        timeZone: 'UTC',
+        timeZone: 'Asia/Shanghai',
         hour: 'numeric',
         minute: withTime.minute > 0 ? 'numeric' : undefined
       });
@@ -15765,13 +15765,13 @@ const VCalendar = genericComponent()({
     });
     const monthLongFormatter = computed$1c(() => {
       return base.getFormatter({
-        timeZone: 'UTC',
+        timeZone: 'Asia/Shanghai',
         month: 'long'
       });
     });
     const monthShortFormatter = computed$1c(() => {
       return base.getFormatter({
-        timeZone: 'UTC',
+        timeZone: 'Asia/Shanghai',
         month: 'short'
       });
     });

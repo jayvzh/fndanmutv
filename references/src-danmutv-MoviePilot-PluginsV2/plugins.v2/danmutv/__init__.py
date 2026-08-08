@@ -9,7 +9,7 @@ from app.core.metainfo import MetaInfo
 from app.core.config import settings
 from app import schemas
 from app.schemas.types import MediaType, EventType, SystemConfigKey
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from typing import Any, List, Dict, Tuple, Optional
 import subprocess
@@ -20,6 +20,20 @@ import json
 import copy
 import requests
 from app.plugins.danmutv import danmu_generator as generator
+
+
+# 通过环境变量定义时区，默认中国时区(UTC+8)
+def _get_local_tz() -> timezone:
+    _tz_str = os.environ.get('TZ', '').strip()
+    if _tz_str:
+        try:
+            from zoneinfo import ZoneInfo
+            return ZoneInfo(_tz_str)
+        except Exception:
+            pass
+    return timezone(timedelta(hours=8))
+
+_CN_TZ = _get_local_tz()
    
 
 class DanmuTV(_PluginBase):
@@ -32,7 +46,7 @@ class DanmuTV(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.7"
+    plugin_version = "1.8"
     # 插件作者
     plugin_author = "jayvzh"
     # 作者主页
@@ -296,7 +310,7 @@ class DanmuTV(_PluginBase):
 
     def _add_history_record(self, record: Dict[str, Any]):
         record["id"] = int(time.time() * 1000)
-        record["timestamp"] = datetime.now().isoformat(timespec="seconds")
+        record["timestamp"] = datetime.now(_CN_TZ).isoformat(timespec="seconds")
         
         max_summary = 100
         max_details = 20
@@ -329,7 +343,7 @@ class DanmuTV(_PluginBase):
                 payload["episodeOffset"] = int(offset)
             except (TypeError, ValueError):
                 payload.pop("episodeOffset", None)
-        payload.setdefault("updatedAt", datetime.now().isoformat(timespec="seconds"))
+        payload.setdefault("updatedAt", datetime.now(_CN_TZ).isoformat(timespec="seconds"))
         return payload
 
     @staticmethod
@@ -352,7 +366,7 @@ class DanmuTV(_PluginBase):
                 match_info = {
                     "animeId": int(anime_id),
                     "source": "legacy-id-file",
-                    "updatedAt": datetime.now().isoformat(timespec="seconds")
+                    "updatedAt": datetime.now(_CN_TZ).isoformat(timespec="seconds")
                 }
                 self._write_manual_match_file(directory, match_info)
                 try:
@@ -383,7 +397,7 @@ class DanmuTV(_PluginBase):
                 payload["animeId"] = int(anime_id)
                 payload.pop("anime_id", None)
                 payload["scope"] = "directory"
-                payload.setdefault("updatedAt", datetime.now().isoformat(timespec="seconds"))
+                payload.setdefault("updatedAt", datetime.now(_CN_TZ).isoformat(timespec="seconds"))
                 with open(self._manual_json_path(directory), 'w', encoding='utf-8') as f:
                     json.dump(payload, f, ensure_ascii=False, indent=2)
             except Exception as e:
@@ -934,8 +948,8 @@ class DanmuTV(_PluginBase):
                 release_date = media_info.release_date
                 if release_date:
                     try:
-                        release_datetime = datetime.strptime(release_date, '%Y-%m-%d')
-                        is_recent = (datetime.now() - release_datetime).days < 90
+                        release_datetime = datetime.strptime(release_date, '%Y-%m-%d').replace(tzinfo=_CN_TZ)
+                        is_recent = (datetime.now(_CN_TZ) - release_datetime).days < 90
                         if is_recent:
                             logger.info(f"媒体 {tmdb_id} 是最近90天内发布的内容,使用短缓存")
                             use_short_cache_ttl = True
@@ -1066,7 +1080,7 @@ class DanmuTV(_PluginBase):
         norm = self._normalize_path(file_path) or file_path
 
         with self._retry_lock:
-            now = datetime.now()
+            now = datetime.now(_CN_TZ)
             if norm in self._retry_tasks:
                 self._retry_tasks[norm]["retry_count"] += 1
                 self._retry_tasks[norm]["last_attempt"] = now
@@ -1123,7 +1137,7 @@ class DanmuTV(_PluginBase):
             # 无弹幕数据，适当延长重试间隔
             base_minutes = max(base_minutes, 15)
 
-        return datetime.now() + timedelta(minutes=base_minutes)
+        return datetime.now(_CN_TZ) + timedelta(minutes=base_minutes)
 
     def _load_retry_tasks(self):
         """从独立存储加载重试任务（兼容旧版从配置迁移）"""
@@ -1154,10 +1168,14 @@ class DanmuTV(_PluginBase):
             for file_path, task_info in stored.items():
                 try:
                     retry_count = task_info.get("retry_count", 1)
-                    last_attempt = datetime.fromisoformat(task_info.get("last_attempt", datetime.now().isoformat()))
+                    last_attempt = datetime.fromisoformat(task_info.get("last_attempt", datetime.now(_CN_TZ).isoformat()))
+                    if last_attempt.tzinfo is None:
+                        last_attempt = last_attempt.replace(tzinfo=_CN_TZ)
 
                     if "next_retry_time" in task_info:
                         next_retry_time = datetime.fromisoformat(task_info["next_retry_time"])
+                        if next_retry_time.tzinfo is None:
+                            next_retry_time = next_retry_time.replace(tzinfo=_CN_TZ)
                     else:
                         next_retry_time = self._calculate_next_retry_time(retry_count, task_info.get("error_type", "unknown"))
 
@@ -1200,7 +1218,7 @@ class DanmuTV(_PluginBase):
                         "last_danmu_count": task_info.get("last_danmu_count", 0),
                         "error_type": task_info.get("error_type", "unknown"),
                         "error_message": task_info.get("error_message", ""),
-                        "next_retry_time": task_info.get("next_retry_time", datetime.now()).isoformat()
+                        "next_retry_time": task_info.get("next_retry_time", datetime.now(_CN_TZ)).isoformat()
                     }
 
             self.save_data("retry_tasks", retry_tasks_for_save)
@@ -1326,7 +1344,7 @@ class DanmuTV(_PluginBase):
         
         # 批量刮削串行执行，避免并发请求触发API限流(429)
         try:
-            for file_path in files:
+            for idx, file_path in enumerate(files):
                 if self._scrape_aborted:
                     logger.info(f"批量刮削已中止（{label}），停止处理剩余文件")
                     break
@@ -1371,6 +1389,27 @@ class DanmuTV(_PluginBase):
                     else:
                         self._scrape_progress["failed"] += 1
                 
+                # 遇到429限流：后续任务必然同样被限流，直接判失败并加入待重试，避免无效请求
+                if not ok and isinstance(result, str) and result.startswith('error:rate_limit:'):
+                    remaining = files[idx + 1:]
+                    if remaining:
+                        logger.warning(
+                            f"批量刮削遇到429限流（{label}），剩余 {len(remaining)} 个文件直接判失败并加入待重试"
+                        )
+                    for rem_path in remaining:
+                        rem_reason = "429限流，批量刮削中断"
+                        details.append({
+                            "file": os.path.basename(rem_path),
+                            "result": "failed",
+                            "danmu_count": 0,
+                            "error": rem_reason
+                        })
+                        with self._scrape_lock:
+                            self._scrape_progress["processed"] += 1
+                            self._scrape_progress["failed"] += 1
+                        self._add_to_retry_if_needed(rem_path, 0, "rate_limit", rem_reason)
+                    break
+                
                 # 文件间短暂间隔，给API缓冲时间
                 time.sleep(0.5)
         finally:
@@ -1412,7 +1451,7 @@ class DanmuTV(_PluginBase):
                         "total_files": summary["total"],
                         "scraped_files": summary["success"]
                     },
-                    "last_scrape_time": datetime.now().isoformat(timespec="seconds")
+                    "last_scrape_time": datetime.now(_CN_TZ).isoformat(timespec="seconds")
                 })
         logger.info(
             f"批量刮削完成（{label}）：成功 {summary['success']}，"
@@ -2033,7 +2072,7 @@ class DanmuTV(_PluginBase):
             "rating": anime.get("rating"),
             "startDate": anime.get("startDate"),
             "source": "manual_file" if scope == "file" else "manual",
-            "updatedAt": datetime.now().isoformat(timespec="seconds")
+            "updatedAt": datetime.now(_CN_TZ).isoformat(timespec="seconds")
         }
         if episode_offset:
             manual_info["episodeOffset"] = episode_offset
@@ -2145,7 +2184,7 @@ class DanmuTV(_PluginBase):
                     "last_danmu_count": task_info.get("last_danmu_count", 0),
                     "error_type": task_info.get("error_type", "unknown"),
                     "error_message": task_info.get("error_message", ""),
-                    "next_retry_time": task_info.get("next_retry_time", datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+                    "next_retry_time": task_info.get("next_retry_time", datetime.now(_CN_TZ)).strftime("%Y-%m-%d %H:%M:%S")
                 }
         
         return schemas.Response(
@@ -2196,7 +2235,7 @@ class DanmuTV(_PluginBase):
 
             # 检查下次重试时间是否到达
             next_retry_time = task_info.get("next_retry_time")
-            if next_retry_time and datetime.now() < next_retry_time:
+            if next_retry_time and datetime.now(_CN_TZ) < next_retry_time:
                 continue
             
             logger.info(f"处理重试任务: {file_path} (第 {task_info['retry_count'] + 1} 次尝试)")
@@ -2454,7 +2493,7 @@ class DanmuTV(_PluginBase):
                 "total_files": total_files,
                 "scraped_files": scraped_files
             },
-            "last_scrape_time": datetime.now().isoformat(timespec="seconds")
+            "last_scrape_time": datetime.now(_CN_TZ).isoformat(timespec="seconds")
         })
         
         return schemas.Response(
@@ -2534,7 +2573,7 @@ class DanmuTV(_PluginBase):
                             orphan_subtitles.append({
                                 "path": full_path,
                                 "size": stat_result.st_size,
-                                "modified_time": datetime.fromtimestamp(stat_result.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                                "modified_time": datetime.fromtimestamp(stat_result.st_mtime, tz=_CN_TZ).strftime("%Y-%m-%d %H:%M:%S")
                             })
                         except OSError:
                             continue
