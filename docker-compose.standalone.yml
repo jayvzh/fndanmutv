@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      - DANMUTV_TOKEN=fn-danmutv
+      - DANMUTV_TOKEN=danmutv
       - DANMUTV_LOG_LEVEL=INFO
       # host 网络模式下直接监听宿主机 8017
       - DANMUTV_PORT=8017

@@ -1,8 +1,8 @@
 import os
-from datetime import datetime
 from typing import Any, Optional
 
 from app.models import ApiResponse
+from app import timeutil
 
 MEDIA_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".ts", ".m4v", ".strm"}
 
@@ -283,7 +283,7 @@ def scan_directory_stats(svc, directory_path: Optional[str] = None,
                     "total_files": total_files,
                     "scraped_files": scraped_files,
                 },
-                "last_scrape_time": datetime.now().isoformat(timespec="seconds"),
+                "last_scrape_time": timeutil.now().isoformat(timespec="seconds"),
             },
         )
 
@@ -331,7 +331,7 @@ def scan_orphan_subtitles(path: Optional[str] = None, configured_path: str = "")
                             {
                                 "path": full_path,
                                 "size": st.st_size,
-                                "modified_time": datetime.fromtimestamp(st.st_mtime).strftime(
+                                "modified_time": timeutil.from_timestamp(st.st_mtime).strftime(
                                     "%Y-%m-%d %H:%M:%S"
                                 ),
                             }

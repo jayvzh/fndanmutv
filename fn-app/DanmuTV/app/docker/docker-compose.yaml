@@ -20,5 +20,7 @@ services:
     profiles: ["bundled"]
     image: logvar/danmu-api:latest
     restart: unless-stopped
+    environment:
+      - ADMIN_TOKEN=${DANMU_API_TOKEN}
     volumes:
       - "${TRIM_PKGVAR}/danmu-api:/data"

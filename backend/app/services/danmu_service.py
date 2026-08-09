@@ -10,6 +10,7 @@ from typing import Any, Optional
 import requests
 
 from app import database
+from app import timeutil
 from app.danmu_generator import (
     DanmuAPI,
     StrmProcessor,
@@ -220,7 +221,7 @@ class DanmuService:
                 payload["episodeOffset"] = int(offset)
             except (TypeError, ValueError):
                 payload.pop("episodeOffset", None)
-        payload.setdefault("updatedAt", datetime.now().isoformat(timespec="seconds"))
+        payload.setdefault("updatedAt", timeutil.now().isoformat(timespec="seconds"))
         return payload
 
     @staticmethod
@@ -302,7 +303,7 @@ class DanmuService:
                 match_info = {
                     "animeId": anime_id,
                     "source": "legacy-id-file",
-                    "updatedAt": datetime.now().isoformat(timespec="seconds"),
+                    "updatedAt": timeutil.now().isoformat(timespec="seconds"),
                 }
                 self._write_manual_match_file(directory, match_info)
                 try:
@@ -373,7 +374,7 @@ class DanmuService:
             "rating": anime.get("rating"),
             "startDate": anime.get("startDate"),
             "source": "manual_file" if scope == "file" else "manual",
-            "updatedAt": datetime.now().isoformat(timespec="seconds"),
+            "updatedAt": timeutil.now().isoformat(timespec="seconds"),
             "scope": scope,
         }
         if episode_offset:
@@ -459,7 +460,7 @@ class DanmuService:
     def _append_history(self, record: dict) -> None:
         record = dict(record)
         record["id"] = str(int(time.time() * 1000))
-        record.setdefault("timestamp", datetime.now().isoformat(timespec="seconds"))
+        record.setdefault("timestamp", timeutil.now().isoformat(timespec="seconds"))
         max_summary = 100
         # 详情只在最近20条概要中保留
         with self._history_lock:
@@ -543,9 +544,9 @@ class DanmuService:
         for file_path, t in stored.items():
             try:
                 last_attempt = t.get("last_attempt")
-                last_dt = datetime.fromisoformat(last_attempt) if last_attempt else datetime.now()
+                last_dt = timeutil.ensure_aware(datetime.fromisoformat(last_attempt)) if last_attempt else timeutil.now()
                 next_rt = t.get("next_retry_time")
-                next_dt = datetime.fromisoformat(next_rt) if next_rt else self._calculate_next_retry_time(
+                next_dt = timeutil.ensure_aware(datetime.fromisoformat(next_rt)) if next_rt else self._calculate_next_retry_time(
                     t.get("retry_count", 1), t.get("error_type", "unknown")
                 )
                 parsed[file_path] = {
@@ -581,7 +582,7 @@ class DanmuService:
             minutes = max(minutes, 60)
         elif error_type == "no_data":
             minutes = max(minutes, 15)
-        return datetime.now() + timedelta(minutes=minutes)
+        return timeutil.now() + timedelta(minutes=minutes)
 
     def _add_to_retry_if_needed(self, file_path: str, danmu_count: int,
                                 error_type: str = "unknown",
@@ -589,7 +590,7 @@ class DanmuService:
         if not self._config.get("enable_retry_task", True):
             return
         norm = self._normalize_path(file_path) or file_path
-        now = datetime.now()
+        now = timeutil.now()
         to_save = None
         to_delete = False
         with self._retry_lock:
@@ -642,7 +643,7 @@ class DanmuService:
                     "last_danmu_count": t.get("last_danmu_count", 0),
                     "error_type": t.get("error_type", "unknown"),
                     "error_message": t.get("error_message", ""),
-                    "next_retry_time": t.get("next_retry_time", datetime.now()).strftime(
+                    "next_retry_time": t.get("next_retry_time", timeutil.now()).strftime(
                         "%Y-%m-%d %H:%M:%S"
                     ),
                 }
@@ -673,7 +674,7 @@ class DanmuService:
                 removed += 1
                 continue
             nrt = t.get("next_retry_time")
-            if nrt and datetime.now() < nrt:
+            if nrt and timeutil.now() < nrt:
                 continue
             processed += 1
             try:
@@ -689,6 +690,10 @@ class DanmuService:
                         failed += 1
                 else:
                     failed += 1
+                    # 命中 429 限流：后续重试任务同样会失败，提前终止本轮
+                    if isinstance(result, str) and result.startswith("error:rate_limit"):
+                        logger.warning("重试任务命中429限流，终止本轮后续重试")
+                        break
             except Exception as e:
                 logger.error(f"重试任务失败 {file_path}: {e}")
                 failed += 1
@@ -933,8 +938,9 @@ class DanmuService:
     def _run_scrape_batch(self, files: list[str], label: str) -> None:
         logger.info(f"开始批量刮削（{label}），共 {len(files)} 个文件")
         details = []
+        rate_limited = False
         try:
-            for fp in files:
+            for idx, fp in enumerate(files):
                 if self._scrape_aborted:
                     break
                 with self._scrape_lock:
@@ -942,6 +948,7 @@ class DanmuService:
                 ok = False
                 count = 0
                 error_msg = ""
+                error_type = ""
                 try:
                     result = self.generate_single(fp)
                     ok = isinstance(result, str) and result.endswith(".danmu.chs.ass")
@@ -949,6 +956,7 @@ class DanmuService:
                         count = self.count_danmu_lines_cached(result)
                     elif isinstance(result, str) and result.startswith("error:"):
                         parts = result.split(":", 2)
+                        error_type = parts[1] if len(parts) >= 2 else "unknown"
                         error_msg = parts[2] if len(parts) >= 3 else result
                     elif isinstance(result, str):
                         error_msg = result
@@ -969,6 +977,34 @@ class DanmuService:
                         "danmu_count": count,
                         "error": error_msg,
                     })
+
+                # 命中 429 限流：后续文件必然同样失败，停止请求，直接判失败并入重试队列
+                if not ok and error_type == "rate_limit":
+                    rate_limited = True
+                    remaining = files[idx + 1:]
+                    logger.warning(
+                        f"批量刮削命中429限流，中断后续 {len(remaining)} 个文件并加入重试队列"
+                    )
+                    for rfp in remaining:
+                        if self._scrape_aborted:
+                            break
+                        with self._scrape_lock:
+                            self._scrape_progress["current_file"] = os.path.basename(rfp)
+                        # 触发 429 的文件已在 _generate_danmu_impl 内入队，剩余文件作为首次失败入队
+                        self._add_to_retry_if_needed(
+                            rfp, 0, "rate_limit", "429限流，批量刮削中断"
+                        )
+                        with self._scrape_lock:
+                            self._scrape_progress["processed"] += 1
+                            self._scrape_progress["failed"] += 1
+                        details.append({
+                            "file": os.path.basename(rfp),
+                            "result": "failed",
+                            "danmu_count": 0,
+                            "error": "429限流，批量刮削中断",
+                        })
+                    break
+
                 time.sleep(0.5)
         finally:
             self._force_regenerate = False
@@ -1009,7 +1045,7 @@ class DanmuService:
                                 "total_files": summary["total"],
                                 "scraped_files": summary["success"],
                             },
-                            "last_scrape_time": datetime.now().isoformat(timespec="seconds"),
+                            "last_scrape_time": timeutil.now().isoformat(timespec="seconds"),
                         },
                     )
             logger.info(

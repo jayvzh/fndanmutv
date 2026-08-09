@@ -8,7 +8,7 @@ services:
     ports:
       - "8017:8017"
     environment:
-      - DANMUTV_TOKEN=fn-danmutv
+      - DANMUTV_TOKEN=danmutv
       - DANMUTV_LOG_LEVEL=INFO
       - DANMUTV_PORT=8017
       - TZ=Asia/Shanghai
@@ -22,12 +22,12 @@ services:
 
   danmu-api:
     image: logvar/danmu-api:latest
-    container_name: fn-danmu-api
+    container_name: danmu-api
     restart: unless-stopped
     ports:
       - "9321:9321"
     environment:
       - TZ=Asia/Shanghai
+      - ADMIN_TOKEN=danmutv
     volumes:
       - ./danmu-api-data:/data
-      - /etc/localtime:/etc/localtime:ro

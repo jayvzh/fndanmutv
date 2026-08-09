@@ -36,7 +36,8 @@ RUN set -eux; \
 # ---- Stage 3: 后端运行 ----
 FROM python:3.12-slim
 
-# 系统层：装 tzdata 并设置默认时区为 Asia/Shanghai（容器内 datetime.now() 取东八区），
+# 系统层：tzdata 供 Python zoneinfo 解析 TZ（代码默认东八区，见 app/timeutil.py）；
+# ca-certificates 供 requests 访问 HTTPS 弹幕 API。
 # ffmpeg 走静态二进制（不再 apt install ffmpeg，避免拉入 libllvm/mesa 等 ~300MB 图形库）
 # 清空代理 + 换国内 Debian 源（python:3.12-slim 基于 Debian trixie）
 RUN export http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= all_proxy= ALL_PROXY= no_proxy= NO_PROXY= \
@@ -45,8 +46,6 @@ RUN export http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= all_proxy= ALL_PROX
         || true) \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata ca-certificates \
-    && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
-    && echo "Asia/Shanghai" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -74,7 +73,6 @@ ENV DANMUTV_DATA_DIR=/data \
     DANMUTV_FRONTEND_DIST=/app/static \
     DANMUTV_LOG_LEVEL=INFO \
     DANMUTV_PORT=8017 \
-    TZ=Asia/Shanghai \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 

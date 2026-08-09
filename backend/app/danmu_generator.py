@@ -8,10 +8,11 @@ import json
 import time
 import threading
 import random
-from datetime import datetime
 from typing import Optional, Dict, List, Tuple, Any
 from dataclasses import dataclass
 import logging
+
+from app import timeutil
 
 logger = logging.getLogger("danmutv.generator")
 
@@ -167,7 +168,7 @@ class DanmuAPI:
         payload = dict(data)
         payload["animeId"] = anime_id_int
         payload.pop("anime_id", None)
-        payload.setdefault("updatedAt", datetime.now().isoformat(timespec="seconds"))
+        payload.setdefault("updatedAt", timeutil.now().isoformat(timespec="seconds"))
         manual_path = cls._manual_file_path(directory)
         try:
             with open(manual_path, 'w', encoding='utf-8') as f:
@@ -206,7 +207,7 @@ class DanmuAPI:
                 data = {
                     "animeId": anime_id,
                     "source": "legacy-id-file",
-                    "updatedAt": datetime.now().isoformat(timespec="seconds")
+                    "updatedAt": timeutil.now().isoformat(timespec="seconds")
                 }
                 cls._write_manual_mapping(directory, data)
                 try:
@@ -346,7 +347,8 @@ class DanmuAPI:
             
             target_episode = episode if episode is not None else file_episode
             logger.info(f"从文件名提取: title={title}, episode={target_episode}, episode_type={type(target_episode).__name__}")
-            
+
+            # 有集数（剧集）使用 "标题.S01E集数"；无集数（电影）直接用标题
             if target_episode is not None:
                 try:
                     target_episode_int = int(target_episode)
@@ -355,31 +357,33 @@ class DanmuAPI:
                     logger.error(f"集数格式错误: {target_episode}, type={type(target_episode).__name__}, error={e}")
                     return None
                 match_file_name = f"{title}.S01E{target_episode_int:02d}"
-                logger.info(f"使用 S01E 格式匹配: {match_file_name}")
-                
-                url = f"{cls.get_api_url()}/api/v2/match"
-                response = None
-                for retry in range(4):
-                    cls._throttle_request()
-                    response = requests.post(url, json={"fileName": match_file_name}, 
-                                             headers=cls.HEADERS, timeout=cls.TIMEOUT)
-                    if response.status_code == 200:
-                        break
-                    elif response.status_code == 429:
-                        wait = 3 * (2 ** retry)  # 指数退避：3s, 6s, 12s, 24s
-                        logger.warning(f"匹配请求被限流(429)，等待{wait}秒后重试 ({retry+1}/4)")
-                        cls._trigger_rate_limit(wait)
-                        time.sleep(wait)
-                    else:
-                        break
-                
-                if response and response.status_code == 200:
-                    result = response.json()
-                    if result.get("success") and result.get("isMatched") and result.get("matches"):
-                        episode_id = str(result["matches"][0]["episodeId"])
-                        episode_title = result["matches"][0].get("episodeTitle", "")
-                        logger.info(f"匹配成功: episodeId={episode_id}, title={episode_title}")
-                        return episode_id
+            else:
+                match_file_name = title
+            logger.info(f"使用匹配文件名: {match_file_name}")
+
+            url = f"{cls.get_api_url()}/api/v2/match"
+            response = None
+            for retry in range(4):
+                cls._throttle_request()
+                response = requests.post(url, json={"fileName": match_file_name},
+                                         headers=cls.HEADERS, timeout=cls.TIMEOUT)
+                if response.status_code == 200:
+                    break
+                elif response.status_code == 429:
+                    wait = 3 * (2 ** retry)  # 指数退避：3s, 6s, 12s, 24s
+                    logger.warning(f"匹配请求被限流(429)，等待{wait}秒后重试 ({retry+1}/4)")
+                    cls._trigger_rate_limit(wait)
+                    time.sleep(wait)
+                else:
+                    break
+
+            if response and response.status_code == 200:
+                result = response.json()
+                if result.get("success") and result.get("isMatched") and result.get("matches"):
+                    episode_id = str(result["matches"][0]["episodeId"])
+                    episode_title = result["matches"][0].get("episodeTitle", "")
+                    logger.info(f"匹配成功: episodeId={episode_id}, title={episode_title}")
+                    return episode_id
             
             if use_tmdb_id and tmdb_id is not None:
                 comment_id = cls.search_by_tmdb_id(tmdb_id, episode, tmdb_id_type)
@@ -393,28 +397,58 @@ class DanmuAPI:
 
     @staticmethod
     def _extract_title_from_filename(file_name: str) -> Optional[str]:
-        """从文件名提取标题（移除年份、集数、扩展名等）"""
-        import re
-        
-        name = os.path.splitext(file_name)[0]
-        
-        # 移除常见的集数标识
-        patterns = [
-            r'\.S\d+E\d+',
-            r'\.E\d+',
-            r'\.\d{4}',
-            r'-\s*\d+',
-            r'\s*\(\d+\)',
-            r'\[[^\]]+\]',
-            r'\([^)]+\)',
+        """从文件名提取标题。
+
+        - 循环去除多重扩展名（如 .mkv.strm）
+        - 保留年份（如 (2010)），年份对识别很重要
+        - 移除分辨率/编码/来源等质量标记（1080P、x265、HEVC、BluRay、WEB-DL、HDR 等）
+        - 移除集数标识（S01E01、E01 等）
+        """
+        name = file_name
+        # 循环去除所有已知扩展名（处理 .mkv.strm 这类多重后缀）
+        while True:
+            base, ext = os.path.splitext(name)
+            if ext.lower() in ('.strm', '.mp4', '.mkv', '.avi', '.rmvb', '.wmv',
+                               '.mov', '.m4v', '.flv', '.ts', '.m2ts', '.iso'):
+                name = base
+            else:
+                break
+
+        # 统一分隔符，便于正则匹配
+        name = name.replace('_', ' ').replace('.', ' ')
+
+        # 移除集数标识（S01E01 / E01，单独成行或边界）
+        name = re.sub(r'[sS]\d+[eE]\d+', ' ', name)
+        name = re.sub(r'(?<![A-Za-z0-9])[eE]\d+(?![A-Za-z0-9])', ' ', name)
+
+        # 移除分辨率标记：1080P / 720P / 2160P / 4K / 8K / 480i 等
+        name = re.sub(r'\b(?:2160|1080|720|576|480)\s*[piPI]\b', ' ', name)
+        name = re.sub(r'\b[48][kK]\b', ' ', name)
+
+        # 移除编码/来源/质量标记
+        quality_tokens = [
+            r'[xXhH]\.?26[45]', r'[xX]26[45]', r'[hH]evc', r'[aAvV][cC]1?',
+            r'[bB]lu[rR]ay', r'[bB][rR][rR]ip', r'[wW][eE][bB][-\s]?[dD][lL]',
+            r'[wW][eE][bB][rR]ip', r'[hH][dD][rR](?:10)?', r'10\s*bit', r'8\s*bit',
+            r'[rR]e[mM][uU][xX]', r'[dD]ts', r'[dD]olby', r'[tT]rue[dD]5?',
+            r'[aA][aA][cC]2?', r'[fF][lL][aA][cC]', r'[dD][dD][pP]?5?\.?1',
+            r'[aA][tT][mM][oO][sS]', r'[nN][fF]', r'[aA][mM][zZ][oO][nN]',
+            r'[dD][iI][sS][nN][eE][yY]?\+?', r'[bB][iI][lL][iI][bB][iI][lL][iI]',
         ]
-        
-        for pattern in patterns:
-            name = re.sub(pattern, '', name)
-        
-        # 移除扩展名和多余的点/空格
-        name = name.strip('. ').strip()
-        
+        for tok in quality_tokens:
+            name = re.sub(tok, ' ', name)
+
+        # 移除组名/发布组等方括号内容
+        name = re.sub(r'\[[^\]]*\]', ' ', name)
+
+        # 移除年份之后的所有内容（年份保留；例如 "盗梦空间 (2010) 1080P ..." -> "盗梦空间 (2010)"）
+        m = re.search(r'[(（]?\s*(19|20)\d{2}\s*[)）]?', name)
+        if m:
+            name = name[:m.end()]
+
+        # 清理残留的分隔符和多余空格
+        name = re.sub(r'[\s.\-]+', ' ', name).strip(' -._')
+
         return name if name else None
 
     @staticmethod
@@ -541,6 +575,7 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Style: {styleid}Front, {fontface}, {front_fontsize:.0f}, &H{front_alpha:02X}FFFFFF, &H{front_alpha:02X}FFFFFF, &H{front_alpha:02X}000000, &H{front_alpha:02X}000000, 0, 0, 0, 0, 100, 100, 0.00, 0.00, 1, {max(front_fontsize / 25.0, 1):.0f}, 0, 7, 0, 0, 0, 0
 Style: {styleid}Mid, {fontface}, {mid_fontsize:.0f}, &H{mid_alpha:02X}FFFFFF, &H{mid_alpha:02X}FFFFFF, &H{mid_alpha:02X}000000, &H{mid_alpha:02X}000000, 0, 0, 0, 0, 100, 100, 0.00, 0.00, 1, {max(mid_fontsize / 25.0, 1):.0f}, 0, 7, 0, 0, 0, 0
 Style: {styleid}Back, {fontface}, {back_fontsize:.0f}, &H{back_alpha:02X}FFFFFF, &H{back_alpha:02X}FFFFFF, &H{back_alpha:02X}000000, &H{back_alpha:02X}000000, 0, 0, 0, 0, 100, 100, 0.00, 0.00, 1, {max(back_fontsize / 25.0, 1):.0f}, 0, 7, 0, 0, 0, 0
+Style: {styleid}, {fontface}, {fontsize:.0f}, &H{alpha_value:02X}FFFFFF, &H{alpha_value:02X}FFFFFF, &H{alpha_value:02X}000000, &H{alpha_value:02X}000000, 0, 0, 0, 0, 100, 100, 0.00, 0.00, 1, {max(fontsize / 25.0, 1):.0f}, 0, 7, 0, 0, 0, 0
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -566,6 +601,7 @@ YCbCr Matrix: TV.601
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: {styleid}Front, {fontface}, {front_fontsize:.0f}, &H{front_alpha:02X}FFFFFF, &H{front_alpha:02X}FFFFFF, &H{front_alpha:02X}000000, &H{front_alpha:02X}000000, 0, 0, 0, 0, 100, 100, 0.00, 0.00, 1, {max(front_fontsize / 25.0, 1):.0f}, 0, 7, 0, 0, 0, 0
 Style: {styleid}Mid, {fontface}, {mid_fontsize:.0f}, &H{mid_alpha:02X}FFFFFF, &H{mid_alpha:02X}FFFFFF, &H{mid_alpha:02X}000000, &H{mid_alpha:02X}000000, 0, 0, 0, 0, 100, 100, 0.00, 0.00, 1, {max(mid_fontsize / 25.0, 1):.0f}, 0, 7, 0, 0, 0, 0
+Style: {styleid}, {fontface}, {fontsize:.0f}, &H{alpha_value:02X}FFFFFF, &H{alpha_value:02X}FFFFFF, &H{alpha_value:02X}000000, &H{alpha_value:02X}000000, 0, 0, 0, 0, 100, 100, 0.00, 0.00, 1, {max(fontsize / 25.0, 1):.0f}, 0, 7, 0, 0, 0, 0
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -776,7 +812,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     color_hex = f'&H{b:02X}{g:02X}{r:02X}'
                     styles = ''
                     
-                    if pos == 1:  # 滚动弹幕
+                    if pos not in (4, 5):  # 非顶/底弹幕均视为滚动弹幕（mode 0/1/2/3/6）
                         # 随机分配顶部/底部弹幕（从滚动弹幕中转换）
                         if random_top_bottom and (top_ratio > 0 or bottom_ratio > 0):
                             is_colored_tb = color != 16777215  # 白色=16777215
@@ -790,7 +826,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                                 elif bottom_ratio > 0 and r_tb < top_ratio + bottom_ratio:
                                     pos = 4  # 转为底部弹幕
 
-                    if pos == 1:  # 滚动弹幕
+                    if pos not in (4, 5):  # 滚动弹幕
                         if enable_multi_layer:
                             is_colored = color != 16777215  # 白色=16777215
                             if is_colored:
