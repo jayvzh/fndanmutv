@@ -1,4 +1,4 @@
-# Fn-DanmuTV 弹幕刮削
+# Fn-DanmuTV 弹幕刮削影视版(Docker)
 
 从弹幕 API 后端（[danmu-api](https://github.com/huangxd-/danmu_api)，弹弹 play 兼容协议）获取影视弹幕，转换为 ASS 弹幕字幕并可与原有字幕合并。由原 MoviePilot V2 插件剥离而来，**不依赖 MoviePilot**，以单 Docker 容器提供 Web UI 与 API。
 
