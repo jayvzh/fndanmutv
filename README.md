@@ -1,4 +1,4 @@
-# Fn-DanmuTV 弹幕刮削影视版(Docker)
+# FnDanmuTV 弹幕刮削影视版(Docker)
 
 从弹幕 API 后端（[danmu-api](https://github.com/huangxd-/danmu_api)，弹弹 play 兼容协议）获取影视弹幕，转换为 ASS 弹幕字幕并可与原有字幕合并。由原 MoviePilot V2 插件剥离而来，**不依赖 MoviePilot**，以单 Docker 容器提供 Web UI 与 API。
 
@@ -24,19 +24,19 @@
 
 ### 完整版（推荐）
 
-内置 fn-danmutv + danmu-api，一条命令拉起：
+内置 fndanmutv + danmu-api，一条命令拉起：
 
 ```bash
 services:
-  danmutv:
+  fndanmutv:
     build: .
     image: jayvzh/fn-danmutv:latest
-    container_name: fn-danmu
+    container_name: fndanmutv
     restart: unless-stopped
     ports:
       - "8017:8017"
     environment:
-      - DANMUTV_TOKEN=fn-danmutv
+      - DANMUTV_TOKEN=fndanmutv
       - DANMUTV_LOG_LEVEL=INFO
       - TZ=Asia/Shanghai
       - DANMUTV_PORT=8017
@@ -50,7 +50,7 @@ services:
   # 弹幕 API 后端（弹弹 play 兼容）
   danmu-api:
     image: ghcr.io/huangxd-/danmu_api:latest
-    container_name: fn-danmu-api
+    container_name: fndanmutv-danmu-api
     restart: unless-stopped
     ports:
       - "9321:9321"
@@ -58,7 +58,7 @@ services:
       - ./danmu-api-data:/data
 ```
 
-浏览器打开 `http://<host>:8017`，默认 Token：`fn-danmutv`（建议通过环境变量 `DANMUTV_TOKEN` 修改）。
+浏览器打开 `http://<host>:8017`，默认 Token：`fndanmutv`（建议通过环境变量 `DANMUTV_TOKEN` 修改）。
 
 ### 独立版
 
@@ -66,14 +66,14 @@ services:
 
 ```bash
 services:
-  danmutv:
+  fndanmutv:
     build: .
     image: jayvzh/fn-danmutv:latest
-    container_name: fn-danmutv
+    container_name: fndanmutv
     restart: unless-stopped
     network_mode: host
     environment:
-      - DANMUTV_TOKEN=fn-danmutv
+      - DANMUTV_TOKEN=fndanmutv
       - DANMUTV_LOG_LEVEL=INFO
       - TZ=Asia/Shanghai
       - DANMUTV_PORT=8017
