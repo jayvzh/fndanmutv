@@ -19,7 +19,7 @@
         ]
       },
       {
-        "type": "password",
+        "type": "text",
         "field": "wizard_token",
         "label": "访问密码（留空保持当前密码）",
         "initValue": ""
@@ -32,24 +32,24 @@
       },
       {
         "type": "radio",
-        "field": "wizard_use_external_api",
-        "label": "使用本机已有的弹幕API（留空保持当前设置）",
+        "field": "wizard_install_bundled_api",
+        "label": "是否安装内置弹幕API（留空保持当前设置）",
         "initValue": "",
         "options": [
           {
-            "label": "否，自动部署内置弹幕API",
-            "value": "false"
+            "label": "是，自动部署内置danmu-api",
+            "value": "true"
           },
           {
-            "label": "是，使用已有的弹幕API",
-            "value": "true"
+            "label": "否，使用已有的danmu-api",
+            "value": "false"
           }
         ]
       },
       {
         "type": "text",
         "field": "wizard_external_api_url",
-        "label": "已有弹幕API地址（留空保持当前地址）",
+        "label": "已有弹幕API地址（选“否”时生效，留空保持当前地址）",
         "initValue": ""
       }
     ]

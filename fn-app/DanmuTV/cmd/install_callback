@@ -22,7 +22,7 @@ save_state() {
     chmod 600 "${STATE_DIR}/${key}"
 }
 
-# switch 字段可能为 true/false（兼容大小写、on/1）
+# 兼容 true/on/1
 is_true() {
     case "$(echo "$1" | tr '[:upper:]' '[:lower:]')" in
         true|on|1) return 0 ;;
@@ -35,34 +35,34 @@ APP_PORT="${wizard_port:-}"
 [ -z "${APP_PORT}" ] && APP_PORT=$(load_state app_port)
 [ -z "${APP_PORT}" ] && APP_PORT="8017"
 
-# 访问密码：向导优先，否则已有值，否则默认 fn-danmutv
+# 访问密码：向导优先，否则已有值，否则默认 danmutv
 DANMUTV_TOKEN="${wizard_token:-}"
 [ -z "${DANMUTV_TOKEN}" ] && DANMUTV_TOKEN=$(load_state token)
-[ -z "${DANMUTV_TOKEN}" ] && DANMUTV_TOKEN="fn-danmutv"
+[ -z "${DANMUTV_TOKEN}" ] && DANMUTV_TOKEN="danmutv"
 
 # 媒体库路径：向导优先，否则已有值，否则默认共享目录
 MEDIA_PATH="${wizard_media_path:-}"
 [ -z "${MEDIA_PATH}" ] && MEDIA_PATH=$(load_state media_path)
 [ -z "${MEDIA_PATH}" ] && MEDIA_PATH="/vol1/@appshare/DanmuTV/media"
 
-# 是否使用外部已有弹幕API：向导优先，否则已有值，否则默认 false（部署内置）
-USE_EXTERNAL_API="${wizard_use_external_api:-}"
-[ -z "${USE_EXTERNAL_API}" ] && USE_EXTERNAL_API=$(load_state use_external_api)
-[ -z "${USE_EXTERNAL_API}" ] && USE_EXTERNAL_API="false"
+# 是否安装内置弹幕API：向导优先，否则已有值，否则默认 true（安装内置）
+INSTALL_BUNDLED="${wizard_install_bundled_api:-}"
+[ -z "${INSTALL_BUNDLED}" ] && INSTALL_BUNDLED=$(load_state install_bundled)
+[ -z "${INSTALL_BUNDLED}" ] && INSTALL_BUNDLED="true"
 
 # 弹幕API地址
-if is_true "${USE_EXTERNAL_API}"; then
+if is_true "${INSTALL_BUNDLED}"; then
+    DANMUTV_DANMU_API_URL="http://danmu-api:9321"
+    COMPOSE_PROFILES="bundled"   # 启动内置 danmu-api 服务
+else
     EXTERNAL_API_URL="${wizard_external_api_url:-}"
     [ -z "${EXTERNAL_API_URL}" ] && EXTERNAL_API_URL=$(load_state external_api_url)
     if [ -z "${EXTERNAL_API_URL}" ]; then
-        echo "external api url is required when using existing api" > "$TRIM_TEMP_LOGFILE"
+        echo "external api url is required when built-in api is not installed" > "$TRIM_TEMP_LOGFILE"
         exit 1
     fi
     DANMUTV_DANMU_API_URL="${EXTERNAL_API_URL}"
-    COMPOSE_PROFILES=""   # 不部署内置 danmu-api
-else
-    DANMUTV_DANMU_API_URL="http://danmu-api:9321"
-    COMPOSE_PROFILES="bundled"  # 启动内置 danmu-api 服务
+    COMPOSE_PROFILES=""          # 不部署内置 danmu-api
 fi
 
 # 校验端口为数字
@@ -71,7 +71,7 @@ if ! [[ "${APP_PORT}" =~ ^[0-9]+$ ]] || [ "${APP_PORT}" -lt 1 ] || [ "${APP_PORT
     exit 1
 fi
 
-# 媒体目录不存在则创建（默认路径需要建；用户自定义路径建失败则报错）
+# 媒体目录不存在则创建
 if [ ! -d "${MEDIA_PATH}" ]; then
     mkdir -p "${MEDIA_PATH}" 2>/dev/null || {
         echo "cannot create media path: ${MEDIA_PATH}" > "$TRIM_TEMP_LOGFILE"
@@ -83,8 +83,8 @@ fi
 save_state app_port "${APP_PORT}"
 save_state token "${DANMUTV_TOKEN}"
 save_state media_path "${MEDIA_PATH}"
-save_state use_external_api "${USE_EXTERNAL_API}"
-is_true "${USE_EXTERNAL_API}" && save_state external_api_url "${DANMUTV_DANMU_API_URL}"
+save_state install_bundled "${INSTALL_BUNDLED}"
+is_true "${INSTALL_BUNDLED}" || save_state external_api_url "${DANMUTV_DANMU_API_URL}"
 
 cat > "${ENV_FILE}" <<EOF
 APP_PORT=${APP_PORT}

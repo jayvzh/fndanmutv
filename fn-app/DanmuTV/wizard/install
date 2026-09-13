@@ -4,7 +4,7 @@
     "items": [
       {
         "type": "tips",
-        "helpText": "以下设置均为选填，留空将使用默认值。DanmuTV 会将弹幕/合并字幕写回视频同目录，媒体库目录需可读写。若本机已运行弹幕 API（弹弹 play 兼容），可勾选下方开关并填写地址，将不再重复部署。"
+        "helpText": "以下设置均为选填，留空将使用默认值。DanmuTV 会将弹幕/合并字幕写回视频同目录，媒体库目录需可读写。若本机已运行弹幕 API（弹弹 play 兼容），可选择“否”不安装内置服务，并填写已有地址。"
       },
       {
         "type": "text",
@@ -19,10 +19,10 @@
         ]
       },
       {
-        "type": "password",
+        "type": "text",
         "field": "wizard_token",
-        "label": "访问密码（默认 fn-danmutv）",
-        "initValue": "fn-danmutv"
+        "label": "访问密码（默认 danmutv）",
+        "initValue": "danmutv"
       },
       {
         "type": "text",
@@ -32,24 +32,24 @@
       },
       {
         "type": "radio",
-        "field": "wizard_use_external_api",
-        "label": "使用本机已有的弹幕API",
-        "initValue": "false",
+        "field": "wizard_install_bundled_api",
+        "label": "是否安装内置弹幕API",
+        "initValue": "true",
         "options": [
           {
-            "label": "否，自动部署内置弹幕API",
-            "value": "false"
+            "label": "是，自动部署内置danmu-api",
+            "value": "true"
           },
           {
-            "label": "是，使用已有的弹幕API",
-            "value": "true"
+            "label": "否，使用已有的danmu-api",
+            "value": "false"
           }
         ]
       },
       {
         "type": "text",
         "field": "wizard_external_api_url",
-        "label": "已有弹幕API地址（选“是”时必填，如 http://192.168.1.10:9321）",
+        "label": "已有弹幕API地址（选“否”时必填，如 http://192.168.1.10:9321）",
         "initValue": ""
       }
     ]

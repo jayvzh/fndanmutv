@@ -20,7 +20,11 @@ WORKDIR /out
 # 文件缺失时此处 COPY 会直接报错终止。
 COPY references/ffmpeg/ffmpeg-linux-x64.gz references/ffmpeg/ffprobe-linux-x64.gz \
      references/ffmpeg/ffmpeg-linux-arm64.gz references/ffmpeg/ffprobe-linux-arm64.gz /tmp/
-RUN set -eux; \
+# UPX 压缩：两个静态二进制 153MB → 约 45MB（运行时自解压，字幕提取为低频操作）
+RUN export http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= all_proxy= ALL_PROXY= no_proxy= NO_PROXY=; \
+    set -eux; \
+    sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories; \
+    apk add --no-cache upx; \
     case "${TARGETARCH}" in \
         amd64) SUFFIX=x64 ;; \
         arm64) SUFFIX=arm64 ;; \
@@ -30,31 +34,25 @@ RUN set -eux; \
     install -m 0755 /tmp/ffmpeg-linux-${SUFFIX} /out/ffmpeg; \
     install -m 0755 /tmp/ffprobe-linux-${SUFFIX} /out/ffprobe; \
     rm -f /tmp/ffmpeg-*.gz /tmp/ffprobe-*.gz; \
+    upx -9 --lzma /out/ffmpeg /out/ffprobe; \
     /out/ffmpeg -version | head -1; \
     /out/ffprobe -version | head -1
 
 # ---- Stage 3: 后端运行 ----
 FROM python:3.12-slim
 
-# 系统层：tzdata 供 Python zoneinfo 解析 TZ（代码默认东八区，见 app/timeutil.py）；
-# ca-certificates 供 requests 访问 HTTPS 弹幕 API。
-# ffmpeg 走静态二进制（不再 apt install ffmpeg，避免拉入 libllvm/mesa 等 ~300MB 图形库）
-# 清空代理 + 换国内 Debian 源（python:3.12-slim 基于 Debian trixie）
-RUN export http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= all_proxy= ALL_PROXY= no_proxy= NO_PROXY= \
-    && (sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
-        || sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list 2>/dev/null \
-        || true) \
-    && apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# tzdata / ca-certificates 在 python:3.12-slim 中已内置：
+# tzdata 供 zoneinfo 解析 TZ（代码默认东八区，见 app/timeutil.py），ca-certificates 供 requests 访问 HTTPS。
+# ffmpeg 走 UPX 压缩的静态二进制（见 Stage 2），无需 apt 安装。
 
 WORKDIR /app
 
-# pip 用国内源；装完即卸载 pip 自身以瘦身（约 -12MB）
+# pip 用国内源；装完即卸载 pip 自身（约 -12MB），并清理 __pycache__/测试目录瘦身
 COPY backend/requirements.txt ./
 RUN export http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= all_proxy= ALL_PROXY= no_proxy= NO_PROXY= \
     && pip install --no-cache-dir --timeout 120 -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt \
-    && pip uninstall -y pip
+    && pip uninstall -y pip \
+    && find /usr/local/lib/python3.12 -depth -type d \( -name '__pycache__' -o -name 'tests' -o -name 'test' \) -exec rm -rf {} +
 
 COPY backend/ ./
 
