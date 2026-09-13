@@ -72,7 +72,7 @@ routes ── deps.get_service ── app.state.svc（lifespan 中组装的 Danm
 
 ## 6. 限流与重试（两级）
 
-1. **引擎级**：`DanmuAPI` 进程变量 `_rate_limit_until` + 全局请求锁（最小间隔 1s）；match/comment 遇 429 指数退避 3/6/12/24s（最多 4 次），并抬高全局冷却时间。
+1. **引擎级**：`DanmuAPI` 进程变量 `_rate_limit_until` + 全局请求锁（最小间隔 `api_request_interval` 配置，默认 21s ≈ 3 次/分钟，0=不限；可用环境变量 `DANMUTV_API_REQUEST_INTERVAL` 注入默认值；match/comment、健康检查、前端搜索统一走 `_throttle_request()` 排队）；match/comment 遇 429 优先读取响应 `Retry-After` 头（钳制 1~3600s），无头时本地指数退避 `max(30s, 节流间隔) × 2^retry`（默认 30/60/120/240s，最多 4 次），并抬高全局冷却时间。该默认值对齐 danmu-api 新版 `RATE_LIMIT_MAX_REQUESTS`（1分钟内最大请求次数，默认 3，0=不限流）；完整版 compose 将其设为 120 并注入客户端间隔 1s 恢复原速。
 2. **业务级**：失败文件入 `retry_tasks`，退避序列 `[5,30,60,120,240,480]` 分钟（超 6 次封顶 480），错误类型设下限：`rate_limit ≥30`、`no_match ≥60`、`no_data ≥15` 分钟；达 10 次放弃删记录。APScheduler 每 5 分钟调 `process_retry_tasks`（同步、仅处理到期任务，遇 429 提前结束本轮）。
 
 ## 7. 定时任务

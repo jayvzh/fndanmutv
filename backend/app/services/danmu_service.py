@@ -11,6 +11,7 @@ import requests
 
 from app import database
 from app import timeutil
+from app.config import settings
 from app.danmu_generator import (
     DanmuAPI,
     StrmProcessor,
@@ -28,6 +29,12 @@ class DanmuService:
     MIN_DANMU_COUNT = 100
     MAX_RETRY_TIMES = 10
     RETRY_BACKOFF_MINUTES = [5, 30, 60, 120, 240, 480]
+    # API/媒体库健康检测缓存时长：静默期内 /full_status 直接返回缓存，不主动探测
+    HEALTH_CACHE_TTL = 60.0
+    # 媒体库统计缓存时长：过期后访问仪表盘/目录浏览时后台自动重扫
+    STATS_CACHE_TTL = 30 * 60.0
+    # 后台统计重扫冷却：避免自动刮削频繁完成时反复全盘统计
+    STATS_REFRESH_COOLDOWN = 120.0
 
     def __init__(self):
         self._config: dict = AppConfig.default_config()
@@ -61,8 +68,24 @@ class DanmuService:
         }
         self._danmu_count_cache: dict[str, tuple] = {}
 
+        # 健康检测缓存：避免状态轮询反复探测 danmu API / 扫描媒体库路径
+        self._health_lock = threading.Lock()
+        self._health_cache: dict = {
+            "api": {"reachable": None, "message": "尚未检测"},
+            "media": None,
+            "ts": 0.0,
+        }
+        self._health_refreshing = False
+
+        # 媒体库统计后台重扫：防并发（非阻塞锁）+ 冷却
+        self._stats_refresh_lock = threading.Lock()
+        self._stats_last_refresh = 0.0
+
         self._scheduler = None
         self._load_all()
+        self._maybe_refresh_health()
+        # 启动时后台静默补一次媒体库文件数统计（每进程仅一次），未刮削过的库也能显示总数
+        threading.Thread(target=self._refresh_library_stats, daemon=True).start()
 
     # ---------- lifecycle ----------
     def set_scheduler(self, scheduler) -> None:
@@ -87,6 +110,10 @@ class DanmuService:
             DanmuAPI.set_api_url(api_url)
         except Exception as e:
             logger.warning(f"设置 DanmuAPI 地址失败: {e}")
+        try:
+            DanmuAPI.set_request_interval(cfg.get("api_request_interval", 21.0))
+        except Exception as e:
+            logger.warning(f"设置 DanmuAPI 请求间隔失败: {e}")
 
     def reload(self) -> None:
         db_cfg = database.load_config_json()
@@ -95,6 +122,9 @@ class DanmuService:
 
     def _merge_config(self, db_cfg: dict) -> dict:
         merged = {**AppConfig.default_config(), **(db_cfg or {})}
+        # 升级场景：老配置行缺少 api_request_interval 键时，环境变量注入值优先于代码默认值
+        if "api_request_interval" not in (db_cfg or {}) and settings.api_request_interval is not None:
+            merged["api_request_interval"] = settings.api_request_interval
         for key in self.DEPRECATED_KEYS:
             merged.pop(key, None)
         # 旧字段 density(百分比) 迁移到 density_count(目标条数)
@@ -151,6 +181,10 @@ class DanmuService:
             merged["density_count"] = int(merged.get("density_count", 5000))
         except (TypeError, ValueError):
             merged["density_count"] = 5000
+        try:
+            merged["api_request_interval"] = max(0.0, float(merged.get("api_request_interval", 21.0)))
+        except (TypeError, ValueError):
+            merged["api_request_interval"] = 21.0
         # 剔除已废弃的旧 density(百分比) 字段
         merged.pop("density", None)
 
@@ -457,6 +491,124 @@ class DanmuService:
         for p in stale:
             database.delete_directory_record(p)
 
+    def _refresh_library_stats(self) -> None:
+        """启动时后台统计各媒体库路径的文件数并持久化（每进程仅一次，不随状态轮询触发）。
+
+        刮削记录里的 scrape_status 只在批量刮削/手动统计后写入，未刮削过的库
+        会让仪表盘"媒体库文件"恒为 0；这里用与扫描一致的规则（限深 6 层、跳过
+        隐藏目录）补一次总数。已刮削成功数与统计时间戳保留记录原值不被覆盖。
+        """
+        for path in self._configured_paths():
+            if not os.path.isdir(path):
+                continue
+            try:
+                total = 0
+                for root, dirs, files in os.walk(path):
+                    if root[len(path):].count(os.sep) >= 6:
+                        dirs[:] = []
+                        continue
+                    dirs[:] = [d for d in dirs if not d.startswith(".")]
+                    total += sum(1 for f in files if scan_service.is_supported_file(os.path.join(root, f)))
+                norm = self._normalize_path(path)
+                with self._directory_lock:
+                    existing = dict(self._directory_records.get(norm) or {})
+                old_status = dict(existing.get("scrape_status") or {})
+                self.update_directory_record(path, {
+                    "scrape_status": {
+                        "total_files": total,
+                        "scraped_files": old_status.get("scraped_files", 0),
+                    },
+                    "stats_updated_at": existing.get("stats_updated_at"),
+                })
+                logger.info(f"媒体库统计 {path}: {total} 个媒体文件")
+            except Exception as e:
+                logger.warning(f"统计媒体库文件数失败 {path}: {e}")
+
+    def _stats_cache_fresh(self, record: Optional[dict]) -> bool:
+        ts = (record or {}).get("stats_updated_at")
+        return isinstance(ts, (int, float)) and (time.time() - ts) <= self.STATS_CACHE_TTL
+
+    def _maybe_refresh_stats(self, refresh_paths: Optional[list[str]] = None) -> None:
+        """后台重扫媒体库目录统计（total+scraped）并落目录记录。
+
+        触发时机：访问仪表盘/目录浏览时统计缓存超过 STATS_CACHE_TTL 过期，
+        或批量刮削完成后修正计数。防并发（非阻塞锁）+ 冷却，避免频繁全盘统计。
+        """
+        if time.time() - self._stats_last_refresh < self.STATS_REFRESH_COOLDOWN:
+            return
+        if refresh_paths is None:
+            refresh_paths = [
+                p for p in self._configured_paths()
+                if os.path.isdir(p) and not self._stats_cache_fresh(self.get_directory_record(p))
+            ]
+        refresh_paths = [p for p in refresh_paths if os.path.isdir(p)]
+        if not refresh_paths or not self._stats_refresh_lock.acquire(blocking=False):
+            return
+
+        def worker():
+            try:
+                for p in refresh_paths:
+                    try:
+                        scan_service.scan_directory_stats(
+                            self, p,
+                            min_danmu_count=self.MIN_DANMU_COUNT,
+                            enable_strm=self._config.get("enable_strm", True),
+                        )
+                        logger.info(f"后台刷新媒体库统计完成 {p}")
+                    except Exception as e:
+                        logger.warning(f"后台刷新媒体库统计失败 {p}: {e}")
+            finally:
+                self._stats_last_refresh = time.time()
+                self._stats_refresh_lock.release()
+
+        threading.Thread(target=worker, daemon=True, name="stats-refresh").start()
+
+    def _configured_root_ancestors(self, directory: str) -> list[str]:
+        """返回 directory 自身或其祖先中属于配置媒体库根的规范化路径列表。"""
+        d = self._normalize_path(directory)
+        if not d:
+            return []
+        out = []
+        for p in self._configured_paths():
+            r = self._normalize_path(p)
+            if r and (d == r or d.startswith(r + os.sep)):
+                out.append(r)
+        return list(dict.fromkeys(out))
+
+    def _bump_scraped(self, directory: str, delta: int) -> None:
+        """对单个目录记录的已刮削数做增量修正（不超过文件总数，不重扫磁盘）。"""
+        if not delta:
+            return
+        with self._directory_lock:
+            rec = self._directory_records.get(directory)
+            if not rec:
+                return
+            ss = dict(rec.get("scrape_status") or {})
+            total = int(ss.get("total_files") or 0)
+            scraped = int(ss.get("scraped_files") or 0) + delta
+            if total > 0:
+                scraped = min(scraped, total)
+            ss["scraped_files"] = max(scraped, 0)
+            rec["scrape_status"] = ss
+            database.upsert_directory_record(directory, rec)
+
+    def _bump_scraped_ancestors(self, directory: str, delta: int,
+                                include_self: bool = True) -> None:
+        """刮削成功后增量上调目录自身记录及其所属媒体库根记录的已刮削计数。"""
+        if not delta:
+            return
+        d = self._normalize_path(directory)
+        if not d:
+            return
+        targets = []
+        if include_self:
+            with self._directory_lock:
+                if d in self._directory_records:
+                    targets.append(d)
+        targets.extend(self._configured_root_ancestors(directory))
+        for t in dict.fromkeys(targets):
+            self._bump_scraped(t, delta)
+
     def _append_history(self, record: dict) -> None:
         record = dict(record)
         record["id"] = str(int(time.time() * 1000))
@@ -473,10 +625,11 @@ class DanmuService:
                 database.insert_history_record(item)
 
     def record_single_history(self, file_path: str, success: bool,
-                              danmu_count: int = 0, message: str = "") -> None:
-        """记录单文件手动刮削历史。"""
+                              danmu_count: int = 0, message: str = "",
+                              record_type: str = "single") -> None:
+        """记录单文件刮削历史（手动刮削 single / 重试任务 retry）。"""
         record = {
-            "type": "single",
+            "type": record_type,
             "path": file_path,
             "file": os.path.basename(file_path),
             "processed": 1,
@@ -496,6 +649,9 @@ class DanmuService:
                 "error": message,
             }]
         self._append_history(record)
+        if success:
+            # 单文件刮削成功：已刮削计数 +1（父目录记录与所属媒体库根），不全盘重扫
+            self._bump_scraped_ancestors(os.path.dirname(file_path), 1)
 
     def get_history(self, page: int = 1, page_size: int = 20,
                     include_details: bool = False) -> dict:
@@ -686,10 +842,31 @@ class DanmuService:
                     count = self.count_danmu_lines_cached(ass_file)
                     if count >= self.MIN_DANMU_COUNT:
                         success += 1
+                        # 重试成功：入历史（retry 类型），并顺带更新已刮削计数
+                        self.record_single_history(
+                            file_path, success=True, danmu_count=count,
+                            record_type="retry",
+                        )
                     else:
                         failed += 1
+                        self.record_single_history(
+                            file_path, success=False, danmu_count=count,
+                            message=f"弹幕数量不足（{count}）", record_type="retry",
+                        )
                 else:
                     failed += 1
+                    # 提取可读错误信息；失败时 generate_single 内部已更新重试队列
+                    if result is None:
+                        msg = "弹幕生成失败"
+                    elif result.startswith("error:"):
+                        parts = result.split(":", 2)
+                        msg = parts[2] if len(parts) >= 3 else result
+                    else:
+                        msg = result
+                    self.record_single_history(
+                        file_path, success=False, danmu_count=0,
+                        message=msg, record_type="retry",
+                    )
                     # 命中 429 限流：后续重试任务同样会失败，提前终止本轮
                     if isinstance(result, str) and result.startswith("error:rate_limit"):
                         logger.warning("重试任务命中429限流，终止本轮后续重试")
@@ -697,6 +874,10 @@ class DanmuService:
             except Exception as e:
                 logger.error(f"重试任务失败 {file_path}: {e}")
                 failed += 1
+                self.record_single_history(
+                    file_path, success=False, danmu_count=0,
+                    message=str(e), record_type="retry",
+                )
         with self._retry_lock:
             remaining = len(self._retry_tasks)
         return {
@@ -1038,16 +1219,25 @@ class DanmuService:
                     else os.path.dirname(os.path.commonprefix(files))
                 )
                 if directory:
+                    # 增量修正目录记录：scraped 累加本次成功数，total 取历史与本次较大值
+                    existing = (self.get_directory_record(directory) or {}).get("scrape_status") or {}
+                    total = max(int(existing.get("total_files") or 0), summary["total"])
+                    scraped = int(existing.get("scraped_files") or 0) + summary["success"]
+                    if total > 0:
+                        scraped = min(scraped, total)
                     self.update_directory_record(
                         directory,
                         {
                             "scrape_status": {
-                                "total_files": summary["total"],
-                                "scraped_files": summary["success"],
+                                "total_files": total,
+                                "scraped_files": scraped,
                             },
                             "last_scrape_time": timeutil.now().isoformat(timespec="seconds"),
                         },
                     )
+                    # 所属媒体库根记录同步 +delta，仪表盘立即反映；稍后后台重扫修正总数
+                    self._bump_scraped_ancestors(directory, summary["success"], include_self=False)
+                    self._maybe_refresh_stats(refresh_paths=self._configured_root_ancestors(directory))
             logger.info(
                 f"批量刮削完成（{label}）：成功 {summary['success']}，失败 {summary['failed']}"
             )
@@ -1068,6 +1258,8 @@ class DanmuService:
         return {"auto_scrape": self._config.get("auto_scrape", False), **progress}
 
     def get_full_status(self) -> dict:
+        # 统计缓存过期时后台自动重扫，不阻塞本次响应
+        self._maybe_refresh_stats()
         with self._scrape_lock:
             progress = dict(self._scrape_progress)
         if progress.get("running") and progress.get("started_at"):
@@ -1080,8 +1272,13 @@ class DanmuService:
             "failed_count": 0,
             "retry_tasks_count": 0,
         }
+        # 只聚合配置媒体库根的记录，避免父/子目录记录重复计数
+        root_keys = {self._normalize_path(p) for p in self._configured_paths()}
+        root_keys.discard(None)
         with self._directory_lock:
-            for rec in self._directory_records.values():
+            for key, rec in self._directory_records.items():
+                if key not in root_keys:
+                    continue
                 ss = rec.get("scrape_status", {})
                 stats["total_files"] += ss.get("total_files", 0)
                 stats["success_count"] += ss.get("scraped_files", 0)
@@ -1098,14 +1295,17 @@ class DanmuService:
                 if nrt and (next_retry_time is None or nrt < next_retry_time):
                     next_retry_time = nrt
 
-        api_status = self.check_api_status()
+        # 静默读取健康缓存；过期时仅触发后台线程刷新，本请求不做实时探测
+        self._maybe_refresh_health()
+        with self._health_lock:
+            api_status = dict(self._health_cache["api"])
+            media_library_accessible = self._health_cache["media"]
         media_paths = self._configured_paths()
-        media_library_accessible = all(os.path.exists(p) for p in media_paths) if media_paths else False
 
         return {
             "auto_scrape": self._config.get("auto_scrape", False),
             "auto_scrape_mode": self._config.get("auto_scrape_mode", "incremental"),
-            "api_connected": api_status.get("reachable", False),
+            "api_connected": api_status.get("reachable"),
             "api_message": api_status.get("message", ""),
             "media_library_accessible": media_library_accessible,
             "media_library_count": len(media_paths),
@@ -1118,16 +1318,46 @@ class DanmuService:
         }
 
     # ---------- API/search ----------
+    def _maybe_refresh_health(self) -> None:
+        """健康缓存过期时启动后台线程静默刷新；调用方立即返回，不做实时探测。"""
+        with self._health_lock:
+            if self._health_refreshing:
+                return
+            if time.time() - self._health_cache["ts"] <= self.HEALTH_CACHE_TTL:
+                return
+            self._health_refreshing = True
+        threading.Thread(target=self._refresh_health, daemon=True).start()
+
+    def _refresh_health(self) -> None:
+        try:
+            api_status = self.check_api_status()
+            media_paths = self._configured_paths()
+            media_ok = all(os.path.exists(p) for p in media_paths) if media_paths else False
+            with self._health_lock:
+                self._health_cache["api"] = api_status
+                self._health_cache["media"] = media_ok
+                self._health_cache["ts"] = time.time()
+        except Exception as e:
+            logger.warning(f"健康检测失败: {e}")
+        finally:
+            with self._health_lock:
+                self._health_refreshing = False
+
     def check_api_status(self, api_url: Optional[str] = None) -> dict:
         target = (api_url or self._config.get("danmu_api_url") or "http://danmu-api:9321").rstrip("/")
+        # 定时健康检查（未显式指定 api_url）同样占用限流额度，纳入全局节流；
+        # 前端"测试连接"显式传 api_url，跳过节流保证即时响应
+        if api_url is None:
+            DanmuAPI._throttle_request()
         try:
             resp = requests.get(f"{target}/api/logs", headers=DanmuAPI.HEADERS, timeout=5)
             if resp.status_code == 200:
                 return {"reachable": True, "message": f"API可访问 ({target})", "url": target}
             if resp.status_code == 401:
+                # 401=Token 缺失或错误，视为不可用（实测无 token / 错 token 均 401）
                 return {
-                    "reachable": True,
-                    "message": "API返回401，需要在地址中配置Token",
+                    "reachable": False,
+                    "message": "API返回401：Token缺失或错误，请按 http://host:9321/{TOKEN} 格式在地址末尾配置正确Token",
                     "url": target,
                 }
             return {
@@ -1145,6 +1375,8 @@ class DanmuService:
         params = {"keyword": keyword}
         if media_type and media_type != "all":
             params["type"] = media_type
+        # 搜索同样占用 danmu-api 限流额度（默认 3 次/分钟），纳入全局节流
+        DanmuAPI._throttle_request()
         resp = requests.get(
             f"{DanmuAPI.get_api_url()}/api/v2/search/anime",
             params=params,
@@ -1192,7 +1424,10 @@ class DanmuService:
         return {"path": self._config.get("path", "")}
 
     # ---------- scan delegation ----------
-    def scan_path(self, path: Optional[str] = None, current_dir: Optional[str] = None):
+    def scan_path(self, path: Optional[str] = None, current_dir: Optional[str] = None,
+                  include_child_stats: bool = True):
+        # 访问目录浏览时统计缓存过期则后台自动重扫
+        self._maybe_refresh_stats()
         return scan_service.scan_path(
             self,
             path=path,
@@ -1200,18 +1435,29 @@ class DanmuService:
             configured_path=self._config.get("path", ""),
             min_danmu_count=self.MIN_DANMU_COUNT,
             enable_strm=self._config.get("enable_strm", True),
+            include_child_stats=include_child_stats,
         )
 
-    def scan_subfolder(self, subfolder_path: str):
+    def scan_subfolder(self, subfolder_path: str, include_child_stats: bool = True):
         return scan_service.scan_subfolder(
             self,
             subfolder_path,
             configured_path=self._config.get("path", ""),
             min_danmu_count=self.MIN_DANMU_COUNT,
             enable_strm=self._config.get("enable_strm", True),
+            include_child_stats=include_child_stats,
         )
 
-    def scan_directory_stats(self, directory_path: str):
+    def directory_stats(self, path: Optional[str] = None):
+        return scan_service.directory_stats(
+            self,
+            path=path,
+            min_danmu_count=self.MIN_DANMU_COUNT,
+            enable_strm=self._config.get("enable_strm", True),
+        )
+
+    def scan_directory_stats(self, directory_path: Optional[str] = None):
+        """directory_path 为空时扫描全部配置媒体库目录。"""
         return scan_service.scan_directory_stats(
             self,
             directory_path,

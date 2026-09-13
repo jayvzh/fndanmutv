@@ -11,6 +11,7 @@
           v-model="searchKeyword"
           variant="outlined"
           hide-details
+          rounded="lg"
           placeholder="搜索文件/目录"
           prepend-inner-icon="mdi-magnify"
           class="search-field"
@@ -32,15 +33,18 @@
         color="info"
         variant="tonal"
         prepend-icon="mdi-clipboard-list-outline"
+        class="tonal-bordered"
         :loading="scanningStats"
+        :disabled="scanningStats"
         @click="scanDirectoryStats"
       >
-        扫描统计
+        {{ currentPath ? '扫描统计' : '扫描统计全部库' }}
       </v-btn>
       <v-btn
         color="warning"
         variant="tonal"
         prepend-icon="mdi-broom"
+        class="tonal-bordered"
         :loading="batchStarting"
         :disabled="scrapingStatus.running"
         @click="cleanCurrentDirectorySubtitles"
@@ -48,9 +52,10 @@
         清理字幕
       </v-btn>
       <v-btn
-        color="secondary"
+        color="primary"
         variant="tonal"
         prepend-icon="mdi-refresh"
+        class="tonal-bordered"
         @click="refreshCurrentDir"
       >
         刷新
@@ -96,11 +101,11 @@
                @click="goBack()">
             <v-icon icon="mdi-keyboard-backspace" size="22" color="primary" class="mr-3"></v-icon>
             <span class="text-subtitle-1 text-primary cursor-pointer">
-              {{ directoryContent.is_root ? '返回目录列表' : '返回上级目录' }}
+              {{ directoryContent.is_root ? '返回媒体库列表' : '返回上级目录' }}
             </span>
           </div>
 
-          <template v-for="(item, index) in filteredItems" :key="index">
+          <template v-for="(item, index) in pagedItems" :key="index">
             <div v-if="item.type === 'directory'"
                  class="directory-item d-flex align-center py-3 px-3 mb-2"
                  @click="navigateToPath(item.path)">
@@ -123,6 +128,9 @@
                 <span class="text-body-1" :class="getScrapeStatusClass(item.scrape_status)">
                   {{ item.scrape_status.scraped_files }}/{{ item.scrape_status.total_files }}
                 </span>
+              </div>
+              <div v-else-if="statsLoading" class="mr-3 d-flex">
+                <v-progress-circular indeterminate size="16" width="2" color="grey"></v-progress-circular>
               </div>
               <v-btn
                 icon="mdi-download-multiple"
@@ -218,6 +226,18 @@
           <v-alert type="info" variant="tonal" class="mb-2 text-body-1">
             请先在配置中设置刮削路径
           </v-alert>
+        </div>
+
+        <div v-if="directoryContent && totalPages > 1"
+             class="d-flex align-center justify-center flex-wrap ga-3 mt-2">
+          <span class="text-body-2 text-grey">{{ pageRange }} 共 {{ filteredItems.length }}</span>
+          <v-pagination
+            v-model="currentPage"
+            :length="totalPages"
+            :total-visible="7"
+            rounded
+            density="comfortable"
+          ></v-pagination>
         </div>
       </v-col>
     </v-row>
@@ -406,8 +426,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue';
 import api from '../api';
+import {
+  BROWSE_CACHE_KEY,
+  BROWSE_LAST_PATH_KEY,
+  BROWSE_CACHE_TTL_MS,
+  readCache,
+  writeCache,
+} from '../utils/cache';
 
 const emit = defineEmits(['refresh']);
 
@@ -436,10 +463,32 @@ const currentPath = ref('');
 const loading = ref(false);
 const notConfigured = ref(false);
 const pathHistory = ref([]);
-const dirCache = new Map();
+
+// 目录缓存持久化到 localStorage：切 tab / 刷新页面不丢失；
+// 条目超过 BROWSE_CACHE_TTL_MS 后视为过期，下次访问自动重新拉取
+const browseStore = readCache(BROWSE_CACHE_KEY) || { dirs: {}, stats: {} };
+const dirCache = browseStore.dirs; // cacheKey -> { content, currentPath, isRoot, ts }
+
+function persistBrowse() {
+  // 只保留最近 30 个目录条目，防止无限增长
+  const entries = Object.entries(dirCache)
+    .sort((a, b) => (b[1].ts || 0) - (a[1].ts || 0));
+  for (const [key] of entries.slice(30)) {
+    delete dirCache[key];
+  }
+  browseStore.stats = Object.fromEntries(statsCache);
+  writeCache(BROWSE_CACHE_KEY, browseStore);
+}
 
 const searchKeyword = ref('');
 const scanningStats = ref(false);
+
+// 分页：每页 20 项；目录的视频/弹幕数量需向后端递归统计，仅对当前页可见目录懒加载
+const PAGE_SIZE = 20;
+const currentPage = ref(1);
+const statsLoading = ref(false);
+const statsCache = new Map();   // path -> {total_files, scraped_files}，随目录缓存一并持久化
+const statsInflight = new Set();
 
 const manualDialog = ref(false);
 const cleanConfirmDialog = ref(false);
@@ -479,6 +528,67 @@ const filteredItems = computed(() => {
   return directoryContent.value.children.filter(item => {
     return item.name.toLowerCase().includes(keyword);
   });
+});
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / PAGE_SIZE)));
+
+// 与 data-table footer 一致的「1-7 共 23」格式
+const pageRange = computed(() => {
+  const total = filteredItems.value.length;
+  const start = total === 0 ? 0 : (currentPage.value - 1) * PAGE_SIZE + 1;
+  const end = Math.min(currentPage.value * PAGE_SIZE, total);
+  return `${start}-${end}`;
+});
+
+const pagedItems = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE;
+  return filteredItems.value.slice(start, start + PAGE_SIZE);
+});
+
+// 仅为当前页可见的目录项请求递归统计（未显示的不往下钻）
+async function ensureVisibleStats() {
+  const children = directoryContent.value?.children;
+  if (!children) return;
+  // 先回填已有缓存
+  for (const item of pagedItems.value) {
+    if (item.type === 'directory' && item.scrape_status == null && statsCache.has(item.path)) {
+      item.scrape_status = statsCache.get(item.path);
+    }
+  }
+  const targets = pagedItems.value.filter(
+    (item) => item.type === 'directory' && item.scrape_status == null && !statsInflight.has(item.path)
+  );
+  if (!targets.length) return;
+  targets.forEach((item) => statsInflight.add(item.path));
+  statsLoading.value = true;
+  try {
+    const res = await api.get('/directory_stats', {
+      params: { path: targets.map((item) => item.path).join('\n') }
+    });
+    if (res?.success) {
+      const stats = res.data?.stats || {};
+      for (const item of targets) {
+        const s = stats[item.path] || { total_files: 0, scraped_files: 0 };
+        statsCache.set(item.path, s);
+        const child = children.find((c) => c.path === item.path);
+        if (child) child.scrape_status = s;
+      }
+      persistBrowse();
+    }
+  } catch (err) {
+    console.error('加载目录统计失败:', err);
+  } finally {
+    targets.forEach((item) => statsInflight.delete(item.path));
+    statsLoading.value = false;
+  }
+}
+
+watch(searchKeyword, () => {
+  currentPage.value = 1;
+});
+
+watch(pagedItems, () => {
+  ensureVisibleStats();
 });
 
 const getScrapeStatusClass = (scrapeStatus) => {
@@ -536,10 +646,16 @@ async function navigateToPath(path, force = false) {
     error.value = null;
     notConfigured.value = false;
     searchKeyword.value = '';
+    currentPage.value = 1;
+    // 强制刷新（刮削/清理/扫描统计后）丢弃懒加载缓存，让统计重新下钻
+    if (force) {
+      statsCache.clear();
+      persistBrowse();
+    }
 
     const cacheKey = path || '__root__';
-    if (!force && dirCache.has(cacheKey)) {
-      const cached = dirCache.get(cacheKey);
+    const cached = !force ? dirCache[cacheKey] : null;
+    if (cached && Date.now() - (cached.ts || 0) <= BROWSE_CACHE_TTL_MS) {
       directoryContent.value = cached.content;
       currentPath.value = cached.currentPath;
       if (pathHistory.value.length === 0 && cached.isRoot) {
@@ -547,17 +663,23 @@ async function navigateToPath(path, force = false) {
       }
       return;
     }
+    if (cached) {
+      delete dirCache[cacheKey]; // 过期条目丢弃，走重新拉取
+    }
 
     if (!path) {
-      const data = await api.get('/scan_path');
+      const data = await api.get('/scan_path', { params: { include_child_stats: false } });
       if (data && data.success) {
         directoryContent.value = data.data;
         currentPath.value = '';
-        dirCache.set(cacheKey, {
+        dirCache[cacheKey] = {
           content: data.data,
           currentPath: '',
-          isRoot: data.data.type === 'root'
-        });
+          isRoot: data.data.type === 'root',
+          ts: Date.now()
+        };
+        persistBrowse();
+        writeCache(BROWSE_LAST_PATH_KEY, '');
         if (data.data.type === 'root') {
           pathHistory.value = [];
         }
@@ -571,17 +693,20 @@ async function navigateToPath(path, force = false) {
       }
     } else {
       const data = await api.get('/scan_subfolder', {
-        params: { subfolder_path: path }
+        params: { subfolder_path: path, include_child_stats: false }
       });
       
       if (data && data.success) {
         directoryContent.value = data.data;
         currentPath.value = path;
-        dirCache.set(cacheKey, {
+        dirCache[cacheKey] = {
           content: data.data,
           currentPath: path,
-          isRoot: false
-        });
+          isRoot: false,
+          ts: Date.now()
+        };
+        persistBrowse();
+        writeCache(BROWSE_LAST_PATH_KEY, path);
         
         if (!pathHistory.value.includes(path)) {
           pathHistory.value.push(path);
@@ -600,7 +725,8 @@ async function navigateToPath(path, force = false) {
 
 function refreshCurrentDir() {
   const cacheKey = currentPath.value || '__root__';
-  dirCache.delete(cacheKey);
+  delete dirCache[cacheKey];
+  persistBrowse();
   navigateToPath(currentPath.value, true);
 }
 
@@ -691,7 +817,11 @@ function selectManualResult(anime) {
 }
 
 async function performManualSearch() {
-  const keyword = manualSearchKeyword.value?.trim();
+  // 搜索前清除关键字中的空白字符与中英文括号
+  const keyword = (manualSearchKeyword.value || '')
+    .replace(/\s+/g, '')
+    .replace(/[()（）]/g, '')
+    .trim();
   if (!keyword) {
     manualSearchError.value = '请输入搜索关键字';
     manualSearchResults.value = [];
@@ -840,21 +970,36 @@ async function confirmCleanSubtitles() {
 }
 
 async function scanDirectoryStats() {
-  if (!currentPath.value) return;
-  
+  if (scanningStats.value) return;
+
   scanningStats.value = true;
-  
+  error.value = null;
+  // 立即反馈：根目录扫全部媒体库，子目录只扫当前目录
+  successMessage.value = currentPath.value
+    ? '正在扫描统计当前目录，媒体库较大时可能较慢…'
+    : '正在扫描统计所有媒体库，较大时可能需要数分钟…';
+
   try {
     const res = await api.get('/scan_directory_stats', {
-      params: { directory_path: currentPath.value }
+      params: currentPath.value ? { directory_path: currentPath.value } : {},
+      timeout: 600000,
     });
-    
+
     if (res && res.success) {
-      successMessage.value = `扫描完成：共 ${res.data.total_files} 个视频文件，已刮削 ${res.data.scraped_files} 个`;
+      const d = res.data || {};
+      successMessage.value = d.libraries != null
+        ? `扫描完成：${d.libraries} 个媒体库，共 ${d.total_files} 个视频文件，已刮削 ${d.scraped_files} 个`
+        : `扫描完成：共 ${d.total_files} 个视频文件，已刮削 ${d.scraped_files} 个`;
+      window.dispatchEvent(new CustomEvent('app:notify', {
+        detail: { success: true, title: '扫描统计完成', text: successMessage.value },
+      }));
       await navigateToPath(currentPath.value, true);
       emit('refresh');
     } else {
       error.value = res?.message || '扫描统计失败';
+      window.dispatchEvent(new CustomEvent('app:notify', {
+        detail: { success: false, title: '扫描统计失败', text: error.value },
+      }));
     }
   } catch (err) {
     console.error('扫描统计失败:', err);
@@ -984,7 +1129,9 @@ async function clearManualMatch(item, scopeOverride = null, keepDialog = false) 
 }
 
 onMounted(async () => {
-  await Promise.all([getStatus(), navigateToPath('')]);
+  // 恢复上次浏览的目录：命中缓存直接展示（未过期），过期或无缓存时自动重新拉取
+  const lastPath = readCache(BROWSE_LAST_PATH_KEY) || '';
+  await Promise.all([getStatus(), navigateToPath(lastPath)]);
   if (scrapingStatus.running) {
     startStatusPolling();
   }
@@ -1002,11 +1149,22 @@ onUnmounted(() => {
   color: rgba(0, 0, 0, 0.87);
 }
 
+/* tonal 按钮加同色边框：tonal 的文字色即主题色，currentColor 让边框自动匹配 info/warning/primary */
+.v-btn.tonal-bordered {
+  border: 1px solid currentColor;
+}
+
 .section-card {
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 12px;
+  border-radius: 16px;
   background: #FFFFFF;
   transition: box-shadow 0.2s ease;
+}
+
+/* 弹窗内 v-card 被 Vuetify 规则（.v-dialog > .v-overlay__content > .v-card，4px）覆盖，
+   这里提高特异性保证弹窗卡片同为 16px 圆角 */
+.v-dialog .section-card.section-card {
+  border-radius: 16px;
 }
 
 .section-card:hover {

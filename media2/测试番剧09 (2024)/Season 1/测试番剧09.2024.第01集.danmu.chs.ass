@@ -1,0 +1,17 @@
+[Script Info]
+Title: 测试番剧09 (2024) 第1集
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, Outline, Alignment, MarginL, MarginR, MarginV
+Style: Danmu, Microsoft YaHei, 48, &H00FFFFFF, 2, 7, 60, 60, 0
+
+[Events]
+Format: Layer, Start, End, Style, Text
+Dialogue: 0,0:00:00.00,0:00:05.00,Danmu,,0,0,0,,这是测试番剧09 (2024) 第1集的测试弹幕1
+Dialogue: 0,0:00:01.00,0:00:06.00,Danmu,,0,0,0,,这是测试番剧09 (2024) 第1集的测试弹幕2
+Dialogue: 0,0:00:02.00,0:00:07.00,Danmu,,0,0,0,,这是测试番剧09 (2024) 第1集的测试弹幕3
+Dialogue: 0,0:00:03.00,0:00:08.00,Danmu,,0,0,0,,这是测试番剧09 (2024) 第1集的测试弹幕4
+Dialogue: 0,0:00:04.00,0:00:09.00,Danmu,,0,0,0,,这是测试番剧09 (2024) 第1集的测试弹幕5

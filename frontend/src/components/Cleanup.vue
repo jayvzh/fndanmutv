@@ -1,52 +1,40 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-4">
+    <div class="d-flex align-center mb-4 flex-wrap gap-2">
       <v-icon icon="mdi-delete-sweep" color="error" size="22" class="mr-2"></v-icon>
-      <span class="section-title-text">残留弹幕字幕清理</span>
-    </div>
-
-    <div class="d-flex align-center mb-4 pa-3 cleanup-hint">
-      <v-icon icon="mdi-information-outline" color="info" size="18" class="mr-2"></v-icon>
-      <span class="text-body-2 text-grey-darken-1">扫描并清理原视频已删除的残留弹幕字幕文件（.danmu.ass）</span>
-    </div>
-
-    <v-row class="mb-4">
-      <v-col cols="12" sm="6">
-        <v-select
-          v-model="selectedPathsList"
-          :items="pathOptions"
-          item-title="label"
-          item-value="value"
-          label="选择扫描路径"
-          variant="outlined"
-          hide-details
-          density="compact"
-          multiple
-          class="cleanup-select"
-          @update:model-value="handlePathChange"
-        ></v-select>
-      </v-col>
-      <v-col cols="12" sm="6" class="d-flex align-center">
-        <span v-if="!scanPaths.length" class="text-error">请先在配置中设置媒体库路径</span>
-      </v-col>
-    </v-row>
-
-    <div class="d-flex align-center flex-wrap ga-2 mb-4">
-      <v-btn color="primary" variant="tonal" prepend-icon="mdi-radar" @click="scanOrphanSubtitles" :loading="scanning" :disabled="!scanPaths.length">
-        扫描残留
-      </v-btn>
-      <v-btn color="info" variant="tonal" prepend-icon="mdi-check-all" @click="selectAll" :disabled="!orphanSubtitles.length">
-        全选
-      </v-btn>
-      <v-btn color="error" variant="tonal" prepend-icon="mdi-delete" @click="cleanSelected" :disabled="!selectedPaths.length" :loading="cleaning">
-        清理选中 ({{ selectedPaths.length }})
-      </v-btn>
-      <v-btn color="error" variant="tonal" prepend-icon="mdi-delete-forever" @click="cleanAll" :disabled="!orphanSubtitles.length" :loading="cleaning">
-        全部删除
-      </v-btn>
+      <span
+        class="section-title-text"
+        v-tooltip="'扫描并清理原视频已删除的残留弹幕字幕文件（.danmu.ass）'"
+      >孤儿弹幕字幕清理</span>
+      <v-select
+        v-model="selectedPathsList"
+        :items="pathOptions"
+        item-title="label"
+        item-value="value"
+        label="选择扫描路径"
+        variant="outlined"
+        hide-details
+        density="compact"
+        multiple
+        :menu-props="{ contentClass: 'compact-select-menu' }"
+        class="cleanup-select ml-4"
+        style="max-width: 360px"
+        @update:model-value="handlePathChange"
+      ></v-select>
+      <span v-if="!scanPaths.length" class="text-error text-body-2">请先在配置中设置媒体库路径</span>
       <v-spacer></v-spacer>
-      <v-chip v-if="totalFound > 0" variant="tonal" color="primary" size="small">找到: {{ totalFound }} 个</v-chip>
-      <v-chip v-if="cleanedCount > 0" variant="tonal" color="success" size="small">已清理: {{ cleanedCount }} 个</v-chip>
+      <div class="d-flex align-center flex-wrap ga-2">
+        <v-chip v-if="cleanedCount > 0" variant="tonal" color="success" size="small">已清理: {{ cleanedCount }} 个</v-chip>
+        <v-btn color="primary" variant="tonal" prepend-icon="mdi-radar" @click="scanOrphanSubtitles" :loading="scanning" :disabled="!scanPaths.length">
+          扫描残留
+        </v-btn>
+        <v-btn color="error" variant="tonal" prepend-icon="mdi-delete" @click="cleanSelected" :disabled="!selectedPaths.length" :loading="cleaning">
+          清理选中 ({{ selectedPaths.length }})
+        </v-btn>
+        <v-btn color="error" variant="tonal" prepend-icon="mdi-delete-forever" @click="cleanAll" :disabled="!orphanSubtitles.length" :loading="cleaning">
+          全部删除
+        </v-btn>
+      </div>
     </div>
 
     <div v-if="scanning" class="text-center py-10">
@@ -60,15 +48,26 @@
       :items="orphanSubtitles"
       :items-per-page="10"
       :loading="loading"
-      density="comfortable"
-      class="cleanup-table"
-      hide-default-footer
+      density="compact"
+      class="common-table"
     >
+      <template v-slot:header.select>
+        <v-checkbox
+          :model-value="isAllSelected"
+          :indeterminate="isIndeterminate"
+          hide-details
+          density="compact"
+          class="justify-center"
+          @update:model-value="toggleSelectAll"
+        ></v-checkbox>
+      </template>
       <template v-slot:item.select="{ item }">
         <v-checkbox
           :value="item.path"
           v-model="selectedPaths"
           hide-details
+          density="compact"
+          class="justify-center"
         ></v-checkbox>
       </template>
       <template v-slot:item.path="{ item }">
@@ -97,8 +96,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import api from '../api'
+import { CLEANUP_CACHE_KEY, readCache, writeCache } from '../utils/cache'
 
 const orphanSubtitles = ref([])
 const totalFound = ref(0)
@@ -109,6 +109,16 @@ const cleaning = ref(false)
 const loading = ref(false)
 const scanPaths = ref([])
 const selectedPathsList = ref([])
+
+// 扫描结果持久化到 localStorage：切 tab / 刷新页面不丢失，重新扫描或清理后更新
+function persistCleanup() {
+  writeCache(CLEANUP_CACHE_KEY, {
+    items: orphanSubtitles.value,
+    total: totalFound.value,
+  })
+}
+
+watch([orphanSubtitles, totalFound], persistCleanup)
 
 const pathOptions = computed(() => {
   const options = []
@@ -122,10 +132,10 @@ const pathOptions = computed(() => {
 })
 
 const headers = [
-  { text: '', value: 'select', width: '5%' },
-  { text: '文件路径', value: 'path', width: '60%' },
-  { text: '大小', value: 'size', width: '15%' },
-  { text: '修改时间', value: 'modified_time', width: '20%' }
+  { title: '', value: 'select', width: '5%', align: 'center' },
+  { title: '文件路径', value: 'path', width: '60%' },
+  { title: '大小', value: 'size', width: '15%' },
+  { title: '修改时间', value: 'modified_time', width: '20%' }
 ]
 
 const handlePathChange = (newVal) => {
@@ -232,12 +242,16 @@ const cleanAll = async () => {
   }
 }
 
-const selectAll = () => {
-  if (selectedPaths.value.length === orphanSubtitles.value.length) {
-    selectedPaths.value = []
-  } else {
-    selectedPaths.value = orphanSubtitles.value.map(item => item.path)
-  }
+const isAllSelected = computed(() =>
+  orphanSubtitles.value.length > 0 && selectedPaths.value.length === orphanSubtitles.value.length
+)
+
+const isIndeterminate = computed(() =>
+  selectedPaths.value.length > 0 && selectedPaths.value.length < orphanSubtitles.value.length
+)
+
+const toggleSelectAll = () => {
+  selectedPaths.value = isAllSelected.value ? [] : orphanSubtitles.value.map(item => item.path)
 }
 
 const formatSize = (bytes) => {
@@ -249,6 +263,12 @@ const formatSize = (bytes) => {
 }
 
 onMounted(() => {
+  // 恢复上次扫描结果（不重新扫描）
+  const cached = readCache(CLEANUP_CACHE_KEY)
+  if (cached && Array.isArray(cached.items) && cached.items.length > 0) {
+    orphanSubtitles.value = cached.items
+    totalFound.value = cached.total || cached.items.length
+  }
   fetchConfig()
 })
 </script>
@@ -260,19 +280,32 @@ onMounted(() => {
   line-height: 1.2;
 }
 
-.cleanup-hint {
-  background-color: rgba(var(--v-theme-info), 0.06);
-  border-radius: 8px;
-  border-left: 3px solid rgb(var(--v-theme-info));
-}
-
 .cleanup-select :deep(.v-select__selection-text),
 .cleanup-select :deep(.v-select__placeholder),
 .cleanup-select :deep(.v-field__input) {
-  font-size: 0.82rem;
+  font-size: 0.9rem;
 }
 
-.cleanup-table {
+.common-table {
   border-radius: 8px;
+  overflow: hidden;
+}
+
+.common-table :deep(thead th) {
+  background-color: rgba(var(--v-theme-primary), 0.08) !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+  color: rgb(var(--v-theme-on-surface)) !important;
+}
+
+.common-table :deep(tbody td) {
+  font-size: 0.8rem !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.common-table :deep(.v-selection-control) {
+  --v-selection-control-size: 28px;
 }
 </style>

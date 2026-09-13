@@ -45,7 +45,7 @@
   "success": 0, "failed": 0, "current_file": null, "duration": 0 }
 ```
 
-`GET /full_status` → `data`：
+`GET /full_status` → `data`（`api_connected` / `media_library_accessible` 为缓存值，服务启动后首次检测完成前可为 `null`；缓存 60s，过期由后台静默刷新，本接口不做实时探测）：
 
 ```json
 {
@@ -85,9 +85,12 @@
 
 | 方法 | 路径 | 参数 | 说明 |
 | --- | --- | --- | --- |
-| GET | `/scan_path` | `path?`、`current_dir?` | 根目录树 / 指定目录；`current_dir` 等价子目录展开；无参取配置路径（多路径包虚拟根节点） |
-| GET | `/scan_subfolder` | `subfolder_path`（必填） | 展开某子目录 |
-| GET | `/scan_directory_stats` | `directory_path`（必填） | 递归统计（深 6 层）并落目录记录 |
+| GET | `/scan_path` | `path?`、`current_dir?`、`include_child_stats?`(默认 true) | 根目录树 / 指定目录；`current_dir` 等价子目录展开；无参取配置路径（多路径包虚拟根节点） |
+| GET | `/scan_subfolder` | `subfolder_path`（必填）、`include_child_stats?`(默认 true) | 展开某子目录 |
+| GET | `/directory_stats` | `path`（必填，多目录换行分隔） | 批量取目录递归统计（深 4 层），供目录浏览按当前页懒加载；非目录返回全 0 |
+| GET | `/scan_directory_stats` | `directory_path?` | 递归统计（深 6 层）并落目录记录（含 `stats_updated_at` 统计时间戳）；缺省时扫描全部配置媒体库目录 |
+
+`include_child_stats=false` 时列表接口不向下递归，目录节点（含多路径虚拟根下的根路径节点）的 `scrape_status` 为 `null`，由前端对可见项调 `/directory_stats` 补全；默认 `true` 行为不变。
 
 目录树节点：
 
@@ -106,12 +109,25 @@
 { "name": "根目录", "path": "", "type": "root", "is_root": true, "children": [] }
 ```
 
-`/scan_directory_stats` 的 `data`：
+`/directory_stats` 的 `data`（key 为入参路径）：
 
 ```json
+{ "stats": { "/media/电影": { "total_files": 12, "scraped_files": 10 } } }
+```
+
+`/scan_directory_stats` 的 `data`（`directory_path` 缺省时扫描全部配置媒体库目录）：
+
+```json
+// 单目录模式
 { "directory_path": "/media", "total_files": 12, "scraped_files": 10,
   "dir_stats": { "/media": { "total_files": 12, "scraped_files": 10 } } }
+// 全库模式
+{ "directory_path": null, "libraries": 2, "total_files": 120, "scraped_files": 98,
+  "dir_stats": { "/media/电影": { "total_files": 60, "scraped_files": 50 },
+                 "/media/剧集": { "total_files": 60, "scraped_files": 48 } } }
 ```
+
+统计缓存：目录记录含 `stats_updated_at` 时间戳，30 分钟内有效；过期后访问仪表盘 `/full_status` 或目录浏览 `/scan_path` 会自动后台重扫（120s 冷却防抖）。手动调用本接口立即刷新。
 
 ### 3.5 字幕清理
 
@@ -198,13 +214,13 @@ record（single）：`{id, timestamp, type:"single", path, file, processed:1, su
 | --- | --- | --- | --- |
 | GET | `/api_status` | `api_url?`（不传用配置） | 探测 `GET {url}/api/logs` |
 
-返回 data：`{reachable:bool, message, url}`。200 可达；401 也视为可达（提示需在地址中配置 Token）；超时 5s。
+返回 data：`{reachable:bool, message, url}`。200 可达；401 判定为不可达（Token 缺失或错误，提示按 `http://host:9321/{TOKEN}` 在地址末尾配置 Token）；超时 5s。
 
 ## 4. 外部 danmu-api 端点（引擎调用，非本服务契约）
 
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
-| GET | `/api/logs` | 连通性探测（200/401 均可达） |
+| GET | `/api/logs` | 连通性探测（200 可达；401=Token 缺失/错误，判为不可达） |
 | GET | `/api/v2/search/anime?keyword=&type=` | 作品搜索 |
 | POST | `/api/v2/match` | body `{"fileName":"标题.S01E01"}`，取 `matches[0].episodeId` |
 | GET | `/api/v2/comment/{comment_id}?format=json&duration=true` | 下载弹幕评论 |

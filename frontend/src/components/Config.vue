@@ -1,6 +1,6 @@
 <template>
   <div class="plugin-config">
-    <v-card class="main-card rounded-lg overflow-hidden">
+    <v-card class="main-card rounded-xl overflow-hidden">
       <!-- 顶部紧凑工具栏 -->
       <div class="topbar d-flex align-center px-5 py-3">
         <v-btn
@@ -164,26 +164,6 @@
                 </v-col>
                 <v-col cols="12" md="6">
                   <div class="setting-item d-flex align-center py-3">
-                    <v-icon icon="mdi-history" :color="editableConfig.enable_history_details ? 'info' : 'grey'" class="mr-3"></v-icon>
-                    <div class="setting-content flex-grow-1">
-                      <div class="d-flex justify-space-between align-center">
-                        <div>
-                          <div class="setting-label">记录历史详情</div>
-                          <div class="setting-desc text-grey">记录批量刮削时每个文件的处理详情</div>
-                        </div>
-                        <v-switch
-                          v-model="editableConfig.enable_history_details"
-                          color="info"
-                          inset
-                          :disabled="saving"
-                          hide-details
-                        ></v-switch>
-                      </div>
-                    </div>
-                  </div>
-                </v-col>
-                <v-col cols="12" md="6">
-                  <div class="setting-item d-flex align-center py-3">
                     <v-icon icon="mdi-repeat" :color="editableConfig.enable_retry_task ? 'warning' : 'grey'" class="mr-3"></v-icon>
                     <div class="setting-content flex-grow-1">
                       <div class="d-flex justify-space-between align-center">
@@ -202,30 +182,70 @@
                     </div>
                   </div>
                 </v-col>
+                <v-col cols="12" md="6">
+                  <div class="setting-item d-flex align-center py-3">
+                    <v-icon icon="mdi-history" :color="editableConfig.enable_history_details ? 'info' : 'grey'" class="mr-3"></v-icon>
+                    <div class="setting-content flex-grow-1">
+                      <div class="d-flex justify-space-between align-center">
+                        <div>
+                          <div class="setting-label">记录历史详情</div>
+                          <div class="setting-desc text-grey">记录批量刮削时每个文件的处理详情</div>
+                        </div>
+                        <v-switch
+                          v-model="editableConfig.enable_history_details"
+                          color="info"
+                          inset
+                          :disabled="saving"
+                          hide-details
+                        ></v-switch>
+                      </div>
+                    </div>
+                  </div>
+                </v-col>
                 <v-col cols="12">
-                  <div class="d-flex align-center flex-row ga-2">
+                  <div class="d-flex align-start flex-row flex-wrap api-row">
+                    <div class="d-flex align-start ga-2 api-url-group">
+                      <v-text-field
+                        v-model="editableConfig.danmu_api_url"
+                        label="弹幕 API 地址"
+                        variant="outlined"
+                        density="comfortable"
+                        placeholder="http://danmu-api:9321/{TOKEN}"
+                        hint="弹幕 API 后端地址（容器内 http://danmu-api:9321）"
+                        persistent-hint
+                        prepend-inner-icon="mdi-web"
+                        :disabled="saving || testingApi"
+                        class="api-url-field"
+                      ></v-text-field>
+                      <v-btn
+                        color="primary"
+                        variant="tonal"
+                        :loading="testingApi"
+                        :disabled="saving || testingApi || !editableConfig.danmu_api_url"
+                        @click="testApiConnection"
+                        prepend-icon="mdi-connection"
+                        class="api-test-btn"
+                      >
+                        测试
+                      </v-btn>
+                    </div>
                     <v-text-field
-                      v-model="editableConfig.danmu_api_url"
-                      label="弹幕 API 地址"
+                      v-model.number="editableConfig.api_request_interval"
+                      label="API 请求最小间隔（秒）"
                       variant="outlined"
                       density="comfortable"
-                      placeholder="http://danmu-api:9321"
-                      hint="弹幕 API 后端地址（容器内推荐 http://danmu-api:9321）"
-                      persistent-hint
-                      prepend-inner-icon="mdi-web"
-                      :disabled="saving || testingApi"
-                      class="api-url-field"
+                      type="number"
+                      min="0"
+                      step="1"
+                      prepend-inner-icon="mdi-speedometer"
+                      :disabled="saving"
+                      hide-details
+                      class="api-interval-field"
                     ></v-text-field>
-                    <v-btn
-                      color="primary"
-                      variant="tonal"
-                      :loading="testingApi"
-                      :disabled="saving || testingApi || !editableConfig.danmu_api_url"
-                      @click="testApiConnection"
-                      prepend-icon="mdi-connection"
-                    >
-                      测试连接
-                    </v-btn>
+                  </div>
+                  <!-- API 请求间隔说明：放在整行下方，带底色突出 -->
+                  <div class="api-interval-hint">
+                    两次请求弹幕 API 的最小间隔，0 表示不限。默认 21 秒 ≈ 3 次/分钟，约 1 个文件/分钟，安全适配 danmu-api 新版默认限流（RATE_LIMIT_MAX_REQUESTS=3）；想加速请先在 danmu-api 端调大该限流，再调小此值，若频繁 429 则应调大此值。内置 danmu-api 部署已通过环境变量自动配好更快速度，无需改动。
                   </div>
                   <v-alert v-if="apiTestResult" :type="apiTestResult.ok ? 'success' : 'error'" variant="tonal" class="mt-3" closable @click:close="apiTestResult = null">
                     {{ apiTestResult.message }}
@@ -548,6 +568,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
 import api from '../api';
+import { BROWSE_CACHE_KEY, clearCache } from '../utils/cache';
 
 const emit = defineEmits(['switch', 'logout']);
 
@@ -721,6 +742,7 @@ const defaultConfig = () => ({
   screen_area: 'quarter',
   enable_strm: true,
   danmu_api_url: 'http://danmu-api:9321',
+  api_request_interval: 21,
   enable_multi_layer: true,
   multi_layer_count: 2,
   random_top_bottom: false,
@@ -750,6 +772,7 @@ const toEditable = (data) => ({
   screen_area: data?.screen_area ?? 'quarter',
   enable_strm: data?.enable_strm ?? true,
   danmu_api_url: data?.danmu_api_url || 'http://danmu-api:9321',
+  api_request_interval: data?.api_request_interval ?? 21,
   enable_multi_layer: data?.enable_multi_layer ?? false,
   multi_layer_count: data?.multi_layer_count ?? 2,
   random_top_bottom: data?.random_top_bottom ?? false,
@@ -833,6 +856,7 @@ async function saveFullConfig() {
       screen_area: editableConfig.screen_area,
       enable_strm: editableConfig.enable_strm,
       danmu_api_url: editableConfig.danmu_api_url,
+      api_request_interval: editableConfig.api_request_interval,
       enable_multi_layer: editableConfig.enable_multi_layer,
       multi_layer_count: editableConfig.multi_layer_count,
       random_top_bottom: editableConfig.random_top_bottom,
@@ -849,6 +873,8 @@ async function saveFullConfig() {
 
     Object.assign(serverFetchedConfig, JSON.parse(JSON.stringify(configToSave)));
     successMessage.value = '配置已保存';
+    // 配置变更后清空目录浏览缓存：下次进入目录浏览页自动重新拉取文件列表
+    clearCache(BROWSE_CACHE_KEY);
   } catch (err) {
     console.error('保存配置失败:', err);
     error.value = err?.response?.data?.detail || err.message || '保存配置失败，请检查网络或查看日志';
@@ -972,8 +998,54 @@ onMounted(() => {
   margin-bottom: 2px;
 }
 
+/* API 行：左右两组各占半列宽，组间距 24px 与 v-row 默认 gutter 一致，
+   使间隔输入框左边缘与上方右半列（md=6）内容左对齐 */
+.api-row {
+  column-gap: 24px;
+  row-gap: 8px;
+}
+
+/* 地址输入框 + 测试按钮整体占左半列宽度 */
+.api-url-group {
+  flex: 0 0 calc(50% - 12px);
+  min-width: 0;
+}
+
 .api-url-field {
-  flex: 0 0 60%;
-  max-width: 60%;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+}
+
+/* 测试按钮（高 36px）与输入框控件（comfortable 高 56px）垂直居中对齐 */
+.api-test-btn {
+  margin-top: 10px;
+  flex: 0 0 auto;
+}
+
+/* API 请求最小间隔输入框：占右半列宽度，与上方右半列左对齐 */
+.api-interval-field {
+  flex: 0 0 calc(25% - 12px);
+  max-width: none;
+}
+
+/* md 断点以下（<960px）两组各占整行，避免挤压 */
+@media (max-width: 959.98px) {
+  .api-url-group,
+  .api-interval-field {
+    flex: 1 1 100%;
+  }
+}
+
+/* 间隔说明：整行下方，浅底色块突出展示 */
+.api-interval-hint {
+  margin-top: 6px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: rgba(0, 0, 0, 0.65);
+  background-color: rgba(var(--v-theme-primary), 0.07);
+  border-left: 3px solid rgb(var(--v-theme-primary));
+  border-radius: 6px;
 }
 </style>

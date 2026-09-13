@@ -1,6 +1,6 @@
 <template>
   <div class="plugin-page">
-    <v-card flat class="main-card rounded-lg overflow-hidden">
+    <v-card flat class="main-card rounded-xl overflow-hidden">
       <!-- 顶部紧凑工具栏：标题 + 登录/配置 -->
       <div class="topbar d-flex align-center px-5 py-4">
         <v-icon icon="mdi-television-play" color="primary" size="28" class="mr-3" />
@@ -63,11 +63,11 @@
         </v-tab>
         <v-tab v-if="authed" value="retry" class="tab-item">
           <v-icon icon="mdi-alert-circle-outline" size="18" class="mr-2"></v-icon>
-          重试任务
+          重试
         </v-tab>
         <v-tab v-if="authed" value="history" class="tab-item">
           <v-icon icon="mdi-history" size="18" class="mr-2"></v-icon>
-          历史记录
+          历史
         </v-tab>
         <v-tab v-if="authed" value="cleanup" class="tab-item">
           <v-icon icon="mdi-delete-sweep" size="18" class="mr-2"></v-icon>
@@ -135,13 +135,22 @@ import RetryTasks from './RetryTasks.vue';
 import History from './History.vue';
 import Cleanup from './Cleanup.vue';
 import { axiosInstance } from '../api';
+import { TAB_KEY } from '../utils/cache';
 
 const props = defineProps({
   authed: { type: Boolean, default: false },
 });
 const emit = defineEmits(['switch', 'login', 'logout']);
 
-const activeTab = ref('dashboard');
+// 当前 tab 持久化：刷新页面后保持所在 tab；未登录时仅允许回到仪表盘
+const AUTH_TABS = ['browse', 'retry', 'history', 'cleanup'];
+const savedTab = localStorage.getItem(TAB_KEY);
+const validTabs = props.authed ? [...AUTH_TABS, 'dashboard'] : ['dashboard'];
+const activeTab = ref(validTabs.includes(savedTab) ? savedTab : 'dashboard');
+
+watch(activeTab, (newTab) => {
+  localStorage.setItem(TAB_KEY, newTab);
+});
 const loginDialog = ref(false);
 const inputPassword = ref('');
 const loginError = ref('');

@@ -1,6 +1,10 @@
 # 独立版：仅 fndanmutv，不包含 danmu-api
 # 适用于你已有外部弹幕 API 的场景。
 # 若你的 danmu-api 在其他主机，请修改 DANMUTV_DANMU_API_URL。
+# 注意：danmu-api 新版默认限流 3 次/分钟（RATE_LIMIT_MAX_REQUESTS=3），
+# 本工具默认按 21s 间隔节流（约 1 个文件/分钟），可安全适配，请勿设为 0；
+# 想更快请先调大 danmu-api 的 RATE_LIMIT_MAX_REQUESTS，再在设置页调小
+# "API 请求最小间隔"；若批量刮削频繁 429，说明超出限流，应调大此间隔。
 services:
   fndanmutv:
     build: .

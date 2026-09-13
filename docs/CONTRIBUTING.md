@@ -50,6 +50,7 @@ docker compose up -d --build      # 完整版
 | `DANMUTV_DATA_DIR`      | `/data`                 | SQLite 数据库与数据目录                      |
 | `DANMUTV_LOG_LEVEL`     | `INFO`                  | 日志级别（DEBUG/INFO/WARNING/ERROR）       |
 | `DANMUTV_DANMU_API_URL` | `http://danmu-api:9321` | 弹幕 API 地址，首次启动写入数据库，之后以 Web UI「配置」为准 |
+| `DANMUTV_API_REQUEST_INTERVAL` | （未设置） | 对 danmu-api 的最小请求间隔（秒），首次启动（或旧配置缺此键）时生效，之后以 Web UI「配置」为准。独立部署建议不设（默认 21s ≈ 3 次/分钟，对齐 danmu-api 新版默认限流）；完整版 compose 设为 `1` 配合内置 danmu-api 放宽的限流 |
 | `DANMUTV_FRONTEND_DIST` | `/app/static`           | 前端构建产物目录（容器内）                        |
 
 > 兼容：也可用 `ADMIN_TOKEN` 作为 Token 变量名（优先级高于 `DANMUTV_TOKEN`）。

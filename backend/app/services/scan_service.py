@@ -1,10 +1,45 @@
 import os
+import re
+import time
 from typing import Any, Optional
 
 from app.models import ApiResponse
 from app import timeutil
 
 MEDIA_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".ts", ".m4v", ".strm"}
+# .withDanmu.ass 的同伴是原字幕（danmu_generator 仅处理 ass/ssa/srt）
+SUBTITLE_EXTENSIONS = {".ass", ".ssa", ".srt"}
+
+# Jellyfin/Emby 弹幕插件（cxfksword jellyfin-plugin-danmu / fengymi emby-plugin-danmu）
+# 命名：<视频名>[.语言][.default][SourceId_danmu].ass
+# 例：难哄.2025.第12集.chs[YoukuID_danmu].ass、Show.zh-CN[BiliBiliId_danmu].ass
+_RE_PLUGIN_DANMU_TAG = re.compile(r"\[[^\]]*_danmu\]", re.IGNORECASE)
+_RE_PLUGIN_LANG_TAIL = re.compile(
+    r"(?:\.(?:chs|cht|zh|zho|chi|cn|zh-cn|zh-tw|zh-hk|zh-sg|zh-hans|zh-hant"
+    r"|en|eng|default|forced|foreign|sdh|cc))+$",
+    re.IGNORECASE,
+)
+
+
+def _classify_danmu_ass(full_path: str) -> Optional[tuple[str, str]]:
+    """识别弹幕字幕并返回 (同伴类型, 不含扩展名的同伴 basename 完整路径)。
+
+    同伴类型："media" 找同 basename 视频；"subtitle" 找同 basename 原字幕。
+    非本程序/已知弹幕插件规格的 .ass 返回 None（不纳入孤儿扫描）。
+    """
+    lower = full_path.lower()
+    if lower.endswith(".danmu.chs.ass"):
+        return "media", full_path[: -len(".danmu.chs.ass")]
+    if lower.endswith(".danmu.ass"):
+        return "media", full_path[: -len(".danmu.ass")]
+    if lower.endswith(".withdanmu.ass"):
+        return "subtitle", full_path[: -len(".withDanmu.ass")]
+    if lower.endswith(".ass") and _RE_PLUGIN_DANMU_TAG.search(full_path):
+        # 去掉 [xxxx_danmu] 标记与 Jellyfin 语言/标志后缀，还原视频 basename
+        base = _RE_PLUGIN_DANMU_TAG.sub("", full_path[: -len(".ass")])
+        base = _RE_PLUGIN_LANG_TAIL.sub("", base).rstrip(".")
+        return "media", base
+    return None
 
 
 def is_supported_file(file_path: str, enable_strm: bool = True) -> bool:
@@ -73,7 +108,8 @@ def _directory_recursive_stats(svc, directory_path: str, max_depth: int = 4,
 
 def scan_current_directory(svc, path: str, is_root: bool = False,
                            min_danmu_count: int = 100,
-                           enable_strm: bool = True) -> dict:
+                           enable_strm: bool = True,
+                           include_child_stats: bool = True) -> dict:
     result: dict[str, Any] = {
         "name": os.path.basename(path) or path,
         "path": path,
@@ -142,8 +178,14 @@ def scan_current_directory(svc, path: str, is_root: bool = False,
                 child["last_scrape_time"] = record.get("last_scrape_time")
             else:
                 child["last_scrape_time"] = None
-            child["scrape_status"] = _directory_recursive_stats(
-                svc, entry.path, min_danmu_count=min_danmu_count, enable_strm=enable_strm
+            # 目录的视频/弹幕数量需向下递归统计；懒加载列表先返回 null，
+            # 由前端仅对当前页可见目录调 /directory_stats 补全
+            child["scrape_status"] = (
+                _directory_recursive_stats(
+                    svc, entry.path, min_danmu_count=min_danmu_count, enable_strm=enable_strm
+                )
+                if include_child_stats
+                else None
             )
             result["children"].append(child)
 
@@ -173,8 +215,13 @@ def scan_current_directory(svc, path: str, is_root: bool = False,
                 child["danmu_count"] = 0
             result["children"].append(child)
 
-        result["scrape_status"] = _directory_recursive_stats(
-            svc, path, min_danmu_count=min_danmu_count, enable_strm=enable_strm
+        # 本节点自身的递归统计同样随 include_child_stats 懒加载
+        result["scrape_status"] = (
+            _directory_recursive_stats(
+                svc, path, min_danmu_count=min_danmu_count, enable_strm=enable_strm
+            )
+            if include_child_stats
+            else None
         )
         return result
     except Exception as e:
@@ -184,10 +231,12 @@ def scan_current_directory(svc, path: str, is_root: bool = False,
 
 def scan_path(svc, path: Optional[str] = None, current_dir: Optional[str] = None,
               configured_path: str = "", min_danmu_count: int = 100,
-              enable_strm: bool = True) -> ApiResponse:
+              enable_strm: bool = True,
+              include_child_stats: bool = True) -> ApiResponse:
     if current_dir:
         return scan_subfolder(svc, current_dir, configured_path=configured_path,
-                              min_danmu_count=min_danmu_count, enable_strm=enable_strm)
+                              min_danmu_count=min_danmu_count, enable_strm=enable_strm,
+                              include_child_stats=include_child_stats)
     if not path:
         path = configured_path
     if not path:
@@ -210,7 +259,8 @@ def scan_path(svc, path: Optional[str] = None, current_dir: Optional[str] = None
                 result["children"].append(
                     scan_current_directory(svc, single_path, is_root=False,
                                            min_danmu_count=min_danmu_count,
-                                           enable_strm=enable_strm)
+                                           enable_strm=enable_strm,
+                                           include_child_stats=include_child_stats)
                 )
         return ApiResponse.ok(data=result)
 
@@ -220,13 +270,15 @@ def scan_path(svc, path: Optional[str] = None, current_dir: Optional[str] = None
     return ApiResponse.ok(
         data=scan_current_directory(svc, single_path, is_root=True,
                                     min_danmu_count=min_danmu_count,
-                                    enable_strm=enable_strm)
+                                    enable_strm=enable_strm,
+                                    include_child_stats=include_child_stats)
     )
 
 
 def scan_subfolder(svc, subfolder_path: Optional[str] = None,
                    configured_path: str = "", min_danmu_count: int = 100,
-                   enable_strm: bool = True) -> ApiResponse:
+                   enable_strm: bool = True,
+                   include_child_stats: bool = True) -> ApiResponse:
     if not subfolder_path:
         return ApiResponse.fail("未提供子文件夹路径")
     if not os.path.exists(subfolder_path):
@@ -239,23 +291,108 @@ def scan_subfolder(svc, subfolder_path: Optional[str] = None,
         is_root = subfolder_path in roots
     data = scan_current_directory(svc, subfolder_path, is_root=is_root,
                                   min_danmu_count=min_danmu_count,
-                                  enable_strm=enable_strm)
+                                  enable_strm=enable_strm,
+                                  include_child_stats=include_child_stats)
     return ApiResponse.ok(data=data)
+
+
+def directory_stats(svc, path: Optional[str] = None,
+                    min_danmu_count: int = 100,
+                    enable_strm: bool = True) -> ApiResponse:
+    """批量获取目录的递归视频/弹幕统计（path 多目录以换行分隔）。
+
+    供目录浏览分页懒加载：仅对当前页可见的目录向下钻取统计。
+    不存在/非目录返回全 0，不中断整批请求。
+    """
+    paths = [p.strip() for p in (path or "").split("\n") if p.strip()]
+    if not paths:
+        return ApiResponse.fail("缺少目录路径")
+    stats: dict[str, dict] = {}
+    for single_path in paths:
+        if os.path.isdir(single_path):
+            stats[single_path] = _directory_recursive_stats(
+                svc, single_path, min_danmu_count=min_danmu_count, enable_strm=enable_strm
+            )
+        else:
+            stats[single_path] = {"total_files": 0, "scraped_files": 0}
+    return ApiResponse.ok(data={"stats": stats})
 
 
 def scan_directory_stats(svc, directory_path: Optional[str] = None,
                          min_danmu_count: int = 100, enable_strm: bool = True,
                          persist: bool = True) -> ApiResponse:
-    if not directory_path:
-        return ApiResponse.fail("缺少目录路径")
-    if not os.path.isdir(directory_path):
-        return ApiResponse.fail("目录不存在")
+    """递归统计并落目录记录；directory_path 为空时扫描全部配置媒体库目录。"""
+    if directory_path:
+        if not os.path.isdir(directory_path):
+            return ApiResponse.fail("目录不存在")
+        total_files, scraped_files, dir_stats = _walk_library_stats(
+            directory_path, min_danmu_count=min_danmu_count, enable_strm=enable_strm, svc=svc
+        )
+        if persist and svc is not None and hasattr(svc, "update_directory_record"):
+            svc.update_directory_record(
+                directory_path,
+                {
+                    "scrape_status": {
+                        "total_files": total_files,
+                        "scraped_files": scraped_files,
+                    },
+                    "stats_updated_at": time.time(),
+                    "last_scrape_time": timeutil.now().isoformat(timespec="seconds"),
+                },
+            )
+        return ApiResponse.ok(
+            data={
+                "directory_path": directory_path,
+                "total_files": total_files,
+                "scraped_files": scraped_files,
+                "dir_stats": dir_stats,
+            }
+        )
 
+    paths = []
+    if svc is not None and hasattr(svc, "_configured_paths"):
+        paths = [p for p in svc._configured_paths() if os.path.isdir(p)]
+    if not paths:
+        return ApiResponse.fail("未配置有效的媒体库路径")
+
+    results: dict[str, dict] = {}
+    total_files = 0
+    scraped_files = 0
+    for p in paths:
+        p_total, p_scraped, _ = _walk_library_stats(
+            p, min_danmu_count=min_danmu_count, enable_strm=enable_strm, svc=svc
+        )
+        results[p] = {"total_files": p_total, "scraped_files": p_scraped}
+        total_files += p_total
+        scraped_files += p_scraped
+        if persist and svc is not None and hasattr(svc, "update_directory_record"):
+            svc.update_directory_record(
+                p,
+                {
+                    "scrape_status": {"total_files": p_total, "scraped_files": p_scraped},
+                    "stats_updated_at": time.time(),
+                    "last_scrape_time": timeutil.now().isoformat(timespec="seconds"),
+                },
+            )
+
+    return ApiResponse.ok(
+        data={
+            "directory_path": None,
+            "libraries": len(paths),
+            "total_files": total_files,
+            "scraped_files": scraped_files,
+            "dir_stats": results,
+        }
+    )
+
+
+def _walk_library_stats(directory_path: str, min_danmu_count: int = 100,
+                        enable_strm: bool = True, svc=None,
+                        max_depth: int = 6) -> tuple[int, int, dict]:
+    """递归统计目录下媒体文件总数与已刮削数（限深、跳过隐藏目录）。"""
     total_files = 0
     scraped_files = 0
     dir_stats: dict[str, dict] = {}
-    max_depth = 6
-
     for root, dirs, files in os.walk(directory_path):
         depth = root[len(directory_path):].count(os.sep)
         if depth >= max_depth:
@@ -274,27 +411,7 @@ def scan_directory_stats(svc, directory_path: Optional[str] = None,
             "total_files": total_files,
             "scraped_files": scraped_files,
         }
-
-    if persist and svc is not None and hasattr(svc, "update_directory_record"):
-        svc.update_directory_record(
-            directory_path,
-            {
-                "scrape_status": {
-                    "total_files": total_files,
-                    "scraped_files": scraped_files,
-                },
-                "last_scrape_time": timeutil.now().isoformat(timespec="seconds"),
-            },
-        )
-
-    return ApiResponse.ok(
-        data={
-            "directory_path": directory_path,
-            "total_files": total_files,
-            "scraped_files": scraped_files,
-            "dir_stats": dir_stats,
-        }
-    )
+    return total_files, scraped_files, dir_stats
 
 
 def scan_orphan_subtitles(path: Optional[str] = None, configured_path: str = "") -> ApiResponse:
@@ -305,39 +422,41 @@ def scan_orphan_subtitles(path: Optional[str] = None, configured_path: str = "")
 
     paths = [p.strip() for p in path.split("\n") if p.strip()]
     orphan_subtitles = []
-    media_extensions = {".mp4", ".mkv", ".strm"}
 
     for scan_p in paths:
         if not os.path.exists(scan_p):
             continue
         for root, _, files in os.walk(scan_p):
+            # 同目录大小写无关比对（NAS 上 .MP4/.Ass 等大写扩展名也能命中）
+            files_lower = {f.lower() for f in files}
             for file in files:
-                _, ext = os.path.splitext(file)
-                if ext.lower() != ".ass":
-                    continue
-                if "danmu" not in file.lower():
-                    continue
                 full_path = os.path.join(root, file)
-                base_name = (
-                    os.path.splitext(full_path)[0]
-                    .replace(".danmu.chs", "")
-                    .replace(".danmu", "")
+                classified = _classify_danmu_ass(full_path)
+                if classified is None:
+                    continue
+                companion_kind, companion_base = classified
+                companion_exts = (
+                    MEDIA_EXTENSIONS if companion_kind == "media" else SUBTITLE_EXTENSIONS
                 )
-                has_media = any(os.path.exists(base_name + m) for m in media_extensions)
-                if not has_media:
-                    try:
-                        st = os.stat(full_path)
-                        orphan_subtitles.append(
-                            {
-                                "path": full_path,
-                                "size": st.st_size,
-                                "modified_time": timeutil.from_timestamp(st.st_mtime).strftime(
-                                    "%Y-%m-%d %H:%M:%S"
-                                ),
-                            }
-                        )
-                    except OSError:
-                        continue
+                companion_name = os.path.basename(companion_base).lower()
+                has_companion = any(
+                    companion_name + ext in files_lower for ext in companion_exts
+                )
+                if has_companion:
+                    continue
+                try:
+                    st = os.stat(full_path)
+                    orphan_subtitles.append(
+                        {
+                            "path": full_path,
+                            "size": st.st_size,
+                            "modified_time": timeutil.from_timestamp(st.st_mtime).strftime(
+                                "%Y-%m-%d %H:%M:%S"
+                            ),
+                        }
+                    )
+                except OSError:
+                    continue
 
     return ApiResponse.ok(
         data={

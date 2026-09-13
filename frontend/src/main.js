@@ -4,10 +4,21 @@ import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 import 'vuetify/styles'
+import { zhHans } from 'vuetify/locale'
 
 const vuetify = createVuetify({
   components,
   directives,
+  // 中文语言包：表格 footer「每页数目：」「全部」等 Vuetify 内置文案中文化
+  locale: {
+    locale: 'zhHans',
+    messages: { zhHans },
+  },
+  defaults: {
+    VBtn: {
+      rounded: 'lg',
+    },
+  },
   theme: {
     defaultTheme: 'light',
     themes: {

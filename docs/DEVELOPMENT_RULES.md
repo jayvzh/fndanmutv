@@ -39,6 +39,11 @@
 
 - 不硬编码 Token/密钥；未配置 Token 时由后端随机生成。
 - 弹幕/字幕写回视频同目录；容器内路径与 Web UI 配置路径必须一致，媒体卷 `:rw`。
+- **禁止默认浏览器自动化 / 截图验证（高耗 token）**：
+  - 找元素、确认元素是否存在、确认文案/绑定：一律 Grep/Read 源码，禁止为此开浏览器；
+  - 验证优先级：读代码核对 ＞ `npm run build` / 冒烟导入 ＞ 接口 curl ＞ 浏览器；上一级能证明就不做下一级；
+  - 浏览器 + 截图仅在两种情况允许：①纯视觉/布局/CSS 改动且静态手段无法判断；②用户明确要求；
+  - 允许时每次最多一张关键态截图，禁止逐页面/逐状态连环截图、禁止"小改动先截图看看"。
 
 ## 4. 分层与依赖
 
@@ -58,6 +63,7 @@ media_parser：纯函数，不碰 DB/网络
 - 重试：退避 `[5,30,60,120,240,480]` 分钟、最多 10 次；`rate_limit ≥30`、`no_match ≥60`、`no_data ≥15` 分钟下限；429 立即中断批量/本轮重试。
 - commentId = `animeId*10000 + 集数`；匹配优先级：文件级手动匹配 → 目录 `.dandan.anime.json`（含集数偏移）→ 文件名 match。
 - 批量串行：每文件间隔 0.5s；同时只允许一个批量任务；中止在当前文件完成后生效。
+- 对 danmu-api 的所有请求（匹配/弹幕/健康检查/搜索）统一走 `_throttle_request()` 全局节流：最小间隔 `api_request_interval`（默认 21s ≈ 3 次/分钟，0=不限），对齐 danmu-api 新版 `RATE_LIMIT_MAX_REQUESTS` 默认 3；完整版 compose 通过 `DANMUTV_API_REQUEST_INTERVAL=1` + `RATE_LIMIT_MAX_REQUESTS=120` 恢复原速。
 - 递归收集"最浅层优先"（某层有媒体即不再下钻，最深 6 层，跳过点号目录）。
 - 媒体扩展名白名单：`.mp4 .mkv .avi .mov .wmv .flv .ts .m4v`（+ 启用时 `.strm`）。
 
@@ -71,6 +77,7 @@ media_parser：纯函数，不碰 DB/网络
 
 - 动手前先查本文档地图与已有实现；检索即取证：不整仓通读、>1500 行文件用关键词检索 + 分段读、同一搜索不重复、同任务搜索 ≤3 轮。
 - 小步改、精确小 diff；不无意义重构；新依赖先说理由并同步 `requirements.txt` / `package.json` / Dockerfile；需求含糊先问清。
+- 浏览器/截图是红线不是建议，具体见 §3 通用末条：默认不开，找元素用 Grep/Read，验证先静态后接口。
 - 注释精简，不批量造测试。
 
 ## 8. 文档维护
@@ -90,7 +97,7 @@ media_parser：纯函数，不碰 DB/网络
 ## 9. 分层验证（提交前）
 
 1. 后端冒烟导入：`conda run -n danmu python -c "import app.main"`（在 `backend/` 下）。
-2. 前端构建：`cd frontend && npm run build`——dist 正常、无 `remoteEntry.js`、CSS 含 `.v-`/`.mdi-`。
+2. 前端构建：`cd frontend && npm run build`——dist 正常、无 `remoteEntry.js`、CSS 含 `.v-`/`.mdi-`。UI 改动以代码核对 + 构建通过为准；除非纯视觉布局类改动（§3 白名单），否则不开浏览器截图。
 3. 接口：无 Token 401/403、带 Token 200（如 `GET /api/auth/verify`、`GET /api/config`）。
 4. 涉 Docker：`docker compose build`（需要先备好 `references/ffmpeg/` 静态二进制）。
 5. 交付摘要 = 修改范围 + 验证结果。
@@ -107,6 +114,7 @@ media_parser：纯函数，不碰 DB/网络
 - [ ] 环境正确：python/pip 用 conda `danmu`；前端 Node 18+。
 - [ ] 新增依赖已同步 requirements.txt / package.json / Dockerfile。
 - [ ] 验证通过：后端冒烟导入；前端 `npm run build`（dist 正常、无 remoteEntry.js、CSS 含 `.v-`/`.mdi-`）；接口 401/200；涉 Docker 时 compose build。
+- [ ] 未滥用浏览器/截图：没有为找元素、确认存在或小改动开浏览器；若截图，属于 §3 白名单（纯视觉布局或用户要求）且仅一张关键态。
 - [ ] 项目专属知识已沉淀 docs/（架构→context、选型→decisions、踩坑→pitfalls、约定/技术债→conventions），未写通用常识。
 - [ ] 无硬编码密钥；.gitignore 覆盖 data/、.env、*.db、node_modules、dist、__pycache__。
 - [ ] 遵循 Git 规范；一次提交一件事；不提交生成物与敏感文件。

@@ -39,6 +39,7 @@
 | screen_area | str | quarter | 弹幕屏幕区域：full/half/third/quarter |
 | enable_strm | bool | true | 是否处理 `.strm` |
 | danmu_api_url | str | http://danmu-api:9321 | 弹幕 API 地址，可在末段带 `/token` |
+| api_request_interval | float | 21.0 | 对 danmu-api 的最小请求间隔（秒），0=不限；默认 ≈3 次/分钟，对应 danmu-api `RATE_LIMIT_MAX_REQUESTS`（默认 3）。环境变量 `DANMUTV_API_REQUEST_INTERVAL` 在首次启动或旧配置缺此键时注入默认值（如完整版 compose 设 1） |
 | enable_multi_layer | bool | true | 多层弹幕 |
 | multi_layer_count | int | 2 | 层数 2/3（保存时强制 int） |
 | random_top_bottom | bool | false | 随机顶/底弹幕 |

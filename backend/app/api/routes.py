@@ -95,18 +95,35 @@ def abort_scrape(svc: DanmuService = Depends(get_service)):
 def scan_path(
     path: Optional[str] = Query(None),
     current_dir: Optional[str] = Query(None),
+    include_child_stats: bool = Query(True),
     svc: DanmuService = Depends(get_service),
 ):
-    return svc.scan_path(path=path, current_dir=current_dir)
+    return svc.scan_path(
+        path=path, current_dir=current_dir, include_child_stats=include_child_stats
+    )
 
 
 @router.get("/scan_subfolder")
-def scan_subfolder(subfolder_path: str = Query(...), svc: DanmuService = Depends(get_service)):
-    return svc.scan_subfolder(subfolder_path)
+def scan_subfolder(
+    subfolder_path: str = Query(...),
+    include_child_stats: bool = Query(True),
+    svc: DanmuService = Depends(get_service),
+):
+    return svc.scan_subfolder(subfolder_path, include_child_stats=include_child_stats)
+
+
+@router.get("/directory_stats")
+def directory_stats(
+    path: Optional[str] = Query(None),
+    svc: DanmuService = Depends(get_service),
+):
+    # path 支持换行分隔多个目录，供目录浏览按当前页可见目录懒加载统计
+    return svc.directory_stats(path=path)
 
 
 @router.get("/scan_directory_stats")
-def scan_directory_stats(directory_path: str = Query(...), svc: DanmuService = Depends(get_service)):
+def scan_directory_stats(directory_path: Optional[str] = Query(None), svc: DanmuService = Depends(get_service)):
+    # directory_path 缺省时扫描全部配置媒体库目录
     return svc.scan_directory_stats(directory_path)
 
 

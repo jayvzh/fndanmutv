@@ -106,4 +106,15 @@ onBeforeUnmount(() => {
 .v-btn {
   text-transform: none !important;
 }
+
+/* v-select 下拉菜单面板圆角（菜单挂在 body 下，需用全局样式；双 .v-sheet 提高特异性覆盖 Vuetify 的 inherit） */
+.v-menu > .v-overlay__content > .v-sheet.v-sheet {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* 选择扫描路径下拉菜单：缩小字号（通过 menu-props contentClass 挂到该下拉的菜单面板） */
+.compact-select-menu .v-list-item-title {
+  font-size: 1rem;
+}
 </style>

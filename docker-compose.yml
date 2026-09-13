@@ -13,6 +13,9 @@ services:
       - DANMUTV_PORT=8017
       - TZ=Asia/Shanghai
       - DANMUTV_DANMU_API_URL=http://danmu-api:9321
+      # 内置 danmu-api 已放宽限流（见 danmu-api 服务），客户端恢复 1s 间隔的原有刮削速度；
+      # 独立部署（standalone，无此变量）保持默认 21s ≈ 3 次/分钟
+      - DANMUTV_API_REQUEST_INTERVAL=1
     volumes:
       - ./data:/data
       # 媒体库，必须可写（弹幕/合并字幕写回视频同目录）
@@ -29,5 +32,8 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - ADMIN_TOKEN=fndanmutv
+      # 1分钟内最大请求次数（新版默认 3，过于保守）。内置部署为可信内网环境，
+      # 在客户端节流 1s（≤60 次/分）之上再留一倍余量，仅防失控
+      - RATE_LIMIT_MAX_REQUESTS=120
     volumes:
       - ./danmu-api-data:/data

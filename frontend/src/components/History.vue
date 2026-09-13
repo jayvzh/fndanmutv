@@ -37,7 +37,7 @@
         {{ formatTime(item.timestamp) }}
       </template>
       <template v-slot:item.type="{ item }">
-        <v-chip :color="getTypeColor(item.type)">
+        <v-chip :color="getTypeColor(item.type)" size="small">
           {{ getTypeLabel(item.type) }}
         </v-chip>
       </template>
@@ -47,9 +47,10 @@
         </div>
       </template>
       <template v-slot:item.result="{ item }">
-        <span class="text-success">成功 {{ item.success }}</span>
-        <span class="mx-2">/</span>
-        <span class="text-error">失败 {{ item.failed }}</span>
+        <div class="result-cell">
+          <span class="text-success">成功 {{ item.success }}</span>
+          <span class="text-error">/失败 {{ item.failed }}</span>
+        </div>
       </template>
       <template v-slot:item.duration="{ item }">
         {{ formatDuration(item.duration) }}
@@ -208,6 +209,7 @@ onMounted(() => {
 
 .common-table {
   border-radius: 8px;
+  overflow: hidden;
 }
 
 .common-table :deep(thead th) {
@@ -220,10 +222,17 @@ onMounted(() => {
 
 .common-table :deep(tbody td) {
   font-size: 0.8rem !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
 }
 
 .text-wrap {
   white-space: normal;
   word-break: break-word;
+}
+
+.result-cell span {
+  display: inline-block;
+  white-space: nowrap;
 }
 </style>

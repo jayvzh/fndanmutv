@@ -35,7 +35,6 @@
       :loading="loading"
       density="compact"
       class="common-table"
-      hide-default-footer
     >
       <template v-slot:item.file_path="{ item }">
         <div class="text-truncate" :title="item.file_path">
@@ -266,6 +265,7 @@ onUnmounted(() => {
 
 .common-table {
   border-radius: 8px;
+  overflow: hidden;
 }
 
 .common-table :deep(thead th) {
@@ -278,6 +278,8 @@ onUnmounted(() => {
 
 .common-table :deep(tbody td) {
   font-size: 0.8rem !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
 }
 
 .empty-state {

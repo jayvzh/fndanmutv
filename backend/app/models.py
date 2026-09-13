@@ -38,6 +38,9 @@ class AppConfig(BaseModel):
     screen_area: str = "quarter"
     enable_strm: bool = True
     danmu_api_url: str = "http://danmu-api:9321"
+    # 对 danmu-api 的最小请求间隔（秒），0=不限。默认 21s ≈ 3 次/分钟，
+    # 对应 danmu-api 端 RATE_LIMIT_MAX_REQUESTS（默认 3 次/分钟，0=不限流）
+    api_request_interval: float = 21.0
     enable_multi_layer: bool = True
     multi_layer_count: int = 2
     random_top_bottom: bool = False
@@ -55,6 +58,9 @@ class AppConfig(BaseModel):
         media_dir = (settings.media_dir or "").strip()
         if media_dir and not cfg.get("path") and os.path.isdir(media_dir):
             cfg["path"] = media_dir
+        # Docker 内置部署通过 DANMUTV_API_REQUEST_INTERVAL 注入更快的默认节流间隔
+        if settings.api_request_interval is not None:
+            cfg["api_request_interval"] = settings.api_request_interval
         return cfg
 
 

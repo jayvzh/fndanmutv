@@ -68,12 +68,6 @@
             </div>
           </v-col>
           <v-col cols="6" sm="3">
-            <div class="stat-item text-center py-3">
-              <div class="stat-number text-error">{{ stats.failed_count }}</div>
-              <div class="stat-label text-grey">失败</div>
-            </div>
-          </v-col>
-          <v-col cols="6" sm="3">
             <div
               class="stat-item text-center py-3"
               :class="stats.retry_tasks_count > 0 ? 'clickable-stat' : ''"
@@ -81,6 +75,16 @@
             >
               <div class="stat-number text-warning">{{ stats.retry_tasks_count }}</div>
               <div class="stat-label text-grey">待重试</div>
+            </div>
+          </v-col>
+          <v-col cols="6" sm="3">
+            <div
+              class="stat-item text-center py-3"
+              :class="stats.failed_count > 0 ? 'clickable-stat' : ''"
+              @click="goToHistory"
+            >
+              <div class="stat-number text-error">{{ stats.failed_count }}</div>
+              <div class="stat-label text-grey">失败</div>
             </div>
           </v-col>
         </v-row>
@@ -154,52 +158,104 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import api from '../api'
+import { DASHBOARD_CACHE_KEY, readCache, writeCache } from '../utils/cache'
 
 const emit = defineEmits(['navigate'])
 
-const autoScrape = ref(false)
-const apiConnected = ref(false)
-const apiMessage = ref('')
-const mediaLibraryAccessible = ref(false)
-const mediaLibraryCount = ref(0)
-const stats = ref({ total_files: 0, success_count: 0, failed_count: 0, retry_tasks_count: 0 })
-const nextRetryTime = ref(null)
-const lastRun = ref(null)
-const scrapingStatus = ref({ running: false, total: 0, processed: 0, success: 0, failed: 0, current_file: null, duration: 0 })
+// 全量状态持久化到浏览器：进仪表盘直接按缓存渲染（状态默认绿），拉取后有变化才更新，不闪
+const cached = readCache(DASHBOARD_CACHE_KEY) || {}
+const autoScrape = ref(cached.auto_scrape || false)
+const apiConnected = ref(cached.api_connected !== undefined ? cached.api_connected : true) // 初始默认正常，拿到异常才变红
+const apiMessage = ref(cached.api_message || '')
+const mediaLibraryAccessible = ref(cached.media_library_accessible !== undefined ? cached.media_library_accessible : true)
+const mediaLibraryCount = ref(cached.media_library_count || 0)
+const stats = ref(cached.stats || { total_files: 0, success_count: 0, failed_count: 0, retry_tasks_count: 0 })
+const nextRetryTime = ref(cached.next_retry_time || null)
+const lastRun = ref(cached.last_run || null)
+const scrapingStatus = ref(cached.scraping_status || { running: false, total: 0, processed: 0, success: 0, failed: 0, current_file: null, duration: 0 })
 
 let refreshInterval = null
+
+function persistDashboard() {
+  writeCache(DASHBOARD_CACHE_KEY, {
+    auto_scrape: autoScrape.value,
+    api_connected: apiConnected.value,
+    api_message: apiMessage.value,
+    media_library_accessible: mediaLibraryAccessible.value,
+    media_library_count: mediaLibraryCount.value,
+    stats: stats.value,
+    next_retry_time: nextRetryTime.value,
+    last_run: lastRun.value,
+    scraping_status: scrapingStatus.value
+  })
+}
+
+// 仅在数据实际变化时赋值，避免重复渲染
+function setIfChanged(refVal, next) {
+  if (JSON.stringify(refVal.value) !== JSON.stringify(next)) {
+    refVal.value = next
+  }
+}
 
 const fetchStatus = async () => {
   try {
     const data = await api.get('/full_status');
     if (data && data.success) {
       const result = data.data
-      autoScrape.value = result.auto_scrape
-      apiConnected.value = result.api_connected
-      apiMessage.value = result.api_message
-      mediaLibraryAccessible.value = result.media_library_accessible
-      mediaLibraryCount.value = result.media_library_count || 0
-      stats.value = result.stats
-      nextRetryTime.value = result.next_retry_time
-      lastRun.value = result.last_run
-      scrapingStatus.value = {
-        running: result.running,
-        total: result.total,
-        processed: result.processed,
-        success: result.success,
-        failed: result.failed,
-        current_file: result.current_file,
-        duration: result.duration
+      autoScrape.value = !!result.auto_scrape
+      // null 表示后端尚未完成首次健康检测，保持当前显示不变
+      if (result.api_connected !== null && result.api_connected !== undefined) {
+        setIfChanged(apiConnected, !!result.api_connected)
       }
+      if (result.media_library_accessible !== null && result.media_library_accessible !== undefined) {
+        setIfChanged(mediaLibraryAccessible, !!result.media_library_accessible)
+      }
+      apiMessage.value = result.api_message || ''
+      mediaLibraryCount.value = result.media_library_count || 0
+      if (result.stats) setIfChanged(stats, result.stats)
+      setIfChanged(nextRetryTime, result.next_retry_time || null)
+      setIfChanged(lastRun, result.last_run || null)
+      setIfChanged(scrapingStatus, {
+        running: !!result.running,
+        total: result.total || 0,
+        processed: result.processed || 0,
+        success: result.success || 0,
+        failed: result.failed || 0,
+        current_file: result.current_file,
+        duration: result.duration || 0
+      })
+      persistDashboard()
     }
   } catch (error) {
-    console.error('获取状态失败:', error)
+    console.error('获取状态失败:', error) // 拉取失败时保持原显示，不变红闪
+  }
+}
+
+// 仅刮削进行中才轮询刷新进度，空闲时零轮询
+const startPolling = () => {
+  if (refreshInterval) return
+  refreshInterval = setInterval(async () => {
+    await fetchStatus()
+    if (!scrapingStatus.value.running) stopPolling()
+  }, 5000)
+}
+
+const stopPolling = () => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
   }
 }
 
 const goToRetry = () => {
   if (stats.value.retry_tasks_count > 0) {
     emit('navigate', 'retry')
+  }
+}
+
+const goToHistory = () => {
+  if (stats.value.failed_count > 0) {
+    emit('navigate', 'history')
   }
 }
 
@@ -220,15 +276,15 @@ const getTypeLabel = (type) => {
   return labels[type] || type
 }
 
+// 进入仪表盘 tab 时检测一次；有任务运行才继续轮询
 onMounted(() => {
-  fetchStatus()
-  refreshInterval = setInterval(fetchStatus, 5000)
+  fetchStatus().then(() => {
+    if (scrapingStatus.value.running) startPolling()
+  })
 })
 
 onUnmounted(() => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
+  stopPolling()
 })
 </script>
 

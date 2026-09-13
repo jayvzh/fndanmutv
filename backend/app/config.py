@@ -1,6 +1,7 @@
 import logging
 import secrets
 from pathlib import Path
+from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,6 +29,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     # 弹幕 API 地址；Docker 中通过 DANMUTV_DANMU_API_URL 注入默认值
     danmu_api_url: str = ""
+    # 对 danmu-api 的最小请求间隔（秒）；内置部署通过 DANMUTV_API_REQUEST_INTERVAL
+    # 注入更快的默认值（如 1）。None=未设置，沿用 AppConfig 默认 21s（对齐外接实例限流）
+    api_request_interval: Optional[float] = None
     # 前端构建产物目录，单独使用 FRONTEND_DIST 环境变量
     frontend_dist: str = str(_PROJECT_ROOT / "frontend" / "dist")
 
