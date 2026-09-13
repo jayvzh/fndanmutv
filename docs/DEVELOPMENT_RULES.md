@@ -1,13 +1,13 @@
 # DanmuTV 开发规则总则（DEVELOPMENT_RULES）
 
 > 版本：v1.0 ｜ 本文档对所有开发任务永久生效；日常轻量任务按仓库根目录 `开发规则.md`（精简版）执行，冲突时以本文为准。
-> 配套交付自检：`.trae/rules/开发补充规则.md`（提交前逐项确认）。
+> 配套交付自检见 §10（提交前逐项确认）。
 
 ## 1. 工作节奏与环境
 
 1. 需求来源以 `.trae/specs/extract-standalone-docker-app/` 下 spec/tasks/checklist 为准；一次只做一个明确任务，不做 spec 外改动，完成立即勾选。
 2. 后端 Python 3.12，所有 python/pip 走 `conda run -n danmu ...`；前端 Node 18+。
-3. 日常开发一律用 `./dev.sh`（`start|stop|restart|status|logs [all|backend|frontend]`）：前端 http://localhost:8017（Vite 代理 `/api`），后端 http://localhost:8021，健康检查 `/health`；本地固定 Token `dev-token`（`backend/.env`）。
+3. 日常开发一律用 `./dev.sh`（`start|stop|restart|status` 控前后端，`logs [backend|frontend]` 查日志）：前端 http://localhost:8017（Vite 代理 `/api` 到后端），后端 http://localhost:8021，健康检查 `/health`；本地固定 Token `dev-token`（`backend/.env`，该文件不入库）。
 4. 功能验证**禁止反复 `docker compose up --build`**；镜像/编排验证留到部署相关改动时一次完成。
 5. 本机需可执行 `ffmpeg` / `ffprobe`；镜像用静态二进制需构建前下载（见 [CONTRIBUTING.md](CONTRIBUTING.md)）。
 
@@ -95,9 +95,18 @@ media_parser：纯函数，不碰 DB/网络
 4. 涉 Docker：`docker compose build`（需要先备好 `references/ffmpeg/` 静态二进制）。
 5. 交付摘要 = 修改范围 + 验证结果。
 
-## 10. 交付自检（详见 `.trae/rules/开发补充规则.md`）
+## 10. 交付自检清单
 
-- spec 对应明确、tasks/checklist 已勾选；代码位置正确；未碰 references/。
-- 无 MoviePilot 残留；SQLite + 统一 APScheduler；契约未破坏。
-- 前端无宿主耦合残留，接口走 `src/api/index.js`。
-- 环境/依赖/忽略规则正确；硬编码密钥为零；文档已回写。
+> 完成任务前逐项确认；细节以 spec/tasks/checklist 为准，不在此重复。
+
+- [ ] spec 对应明确、未做 spec 外改动；tasks.md / checklist.md 已勾选。
+- [ ] 代码位置正确（backend/app 或 frontend/src）；未碰 references/。
+- [ ] 无 MoviePilot 残留；持久化走 SQLite；定时任务走统一 APScheduler。
+- [ ] API 前缀 `/api` + Bearer Token；契约未破坏（`/config` 裸 dict、`clean_orphan_subtitles` 裸数组）。
+- [ ] 前端无 props.api / postMessage / iframe / Module Federation 残留；接口走 `src/api/index.js`。
+- [ ] 环境正确：python/pip 用 conda `danmu`；前端 Node 18+。
+- [ ] 新增依赖已同步 requirements.txt / package.json / Dockerfile。
+- [ ] 验证通过：后端冒烟导入；前端 `npm run build`（dist 正常、无 remoteEntry.js、CSS 含 `.v-`/`.mdi-`）；接口 401/200；涉 Docker 时 compose build。
+- [ ] 项目专属知识已沉淀 docs/（架构→context、选型→decisions、踩坑→pitfalls、约定/技术债→conventions），未写通用常识。
+- [ ] 无硬编码密钥；.gitignore 覆盖 data/、.env、*.db、node_modules、dist、__pycache__。
+- [ ] 遵循 Git 规范；一次提交一件事；不提交生成物与敏感文件。
