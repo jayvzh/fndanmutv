@@ -1,7 +1,7 @@
 {
     ".url": {
-        "danmutv.Application": {
-            "title": "DanmuTV",
+        "fndanmutv.Application": {
+            "title": "FnDanmuTV",
             "icon": "images/icon_{0}.png",
             "type": "iframe",
             "protocol": "http",

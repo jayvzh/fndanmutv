@@ -1,15 +1,15 @@
-# 独立版：仅 fn-danmutv，不包含 danmu-api
+# 独立版：仅 fndanmutv，不包含 danmu-api
 # 适用于你已有外部弹幕 API 的场景。
 # 若你的 danmu-api 在其他主机，请修改 DANMUTV_DANMU_API_URL。
 services:
-  danmutv:
+  fndanmutv:
     build: .
-    image: jayvzh/fn-danmutv:latest
-    container_name: fn-danmutv
+    image: jayvzh/fndanmutv:latest
+    container_name: fndanmutv
     restart: unless-stopped
     network_mode: host
     environment:
-      - DANMUTV_TOKEN=danmutv
+      - DANMUTV_TOKEN=fndanmutv
       - DANMUTV_LOG_LEVEL=INFO
       # host 网络模式下直接监听宿主机 8017
       - DANMUTV_PORT=8017

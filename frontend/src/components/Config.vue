@@ -14,7 +14,7 @@
         </v-btn>
         <v-spacer></v-spacer>
         <v-icon icon="mdi-cog" color="primary" size="24" class="mr-2" />
-        <div class="topbar-title">DanmuTV 配置</div>
+        <div class="topbar-title">FnDanmuTV 配置</div>
         <v-spacer></v-spacer>
         <v-btn
           color="secondary"
@@ -568,8 +568,8 @@ const PRESET_FIELDS = [
   'random_top_bottom', 'top_ratio', 'bottom_ratio',
   'density_count', 'width_scale',
 ];
-const PRESET_STORAGE_KEY = 'danmutv_danmu_presets';
-const ACTIVE_PRESET_KEY = 'danmutv_active_preset';
+const PRESET_STORAGE_KEY = 'fndanmutv_danmu_presets';
+const ACTIVE_PRESET_KEY = 'fndanmutv_active_preset';
 const BUILTIN_DEFAULT_ID = 'default';
 
 // 弹幕密度条数可选项：0 表示全部保留

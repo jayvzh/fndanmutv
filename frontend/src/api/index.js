@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const TOKEN_KEY = 'danmutv_token'
+const TOKEN_KEY = 'fndanmutv_token'
 
 const api = axios.create({
   baseURL: '/api',

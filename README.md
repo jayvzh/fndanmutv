@@ -30,7 +30,7 @@
 services:
   fndanmutv:
     build: .
-    image: jayvzh/fn-danmutv:latest
+    image: jayvzh/fndanmutv:latest
     container_name: fndanmutv
     restart: unless-stopped
     ports:
@@ -62,13 +62,13 @@ services:
 
 ### 独立版
 
-仅启动 DanmuTV，需自行提供 danmu-api：
+仅启动 FnDanmuTV，需自行提供 danmu-api：
 
 ```bash
 services:
   fndanmutv:
     build: .
-    image: jayvzh/fn-danmutv:latest
+    image: jayvzh/fndanmutv:latest
     container_name: fndanmutv
     restart: unless-stopped
     network_mode: host
@@ -91,9 +91,23 @@ services:
 > - 媒体卷必须以 `:rw` 挂载，弹幕 / 合并字幕会写回视频文件所在目录。
 > - 容器内路径与 Web UI 中显示 / 配置的路径必须一致（如 `/media/电影/xxx.mkv`）。
 
-## 开发指引
+## 项目文档
 
-如果你想参与本项目的开发，请阅读我们的 [开发指引文档](docs/CONTRIBUTING.md)。
+| 文档 | 内容 |
+| --- | --- |
+| [开发规则.md](开发规则.md) | 开发第一份规则：文档地图、铁律、常用命令、交付自检 |
+| [docs/PRD.md](docs/PRD.md) | 产品需求：背景、使用场景、功能需求、非目标与业务规则 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 技术架构：分层、鉴权、刮削状态机、限流重试与定时任务 |
+| [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) | 目录结构、模块职责、核心数据流 |
+| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | SQLite 表结构、迁移约定、全部配置项 |
+| [docs/API.md](docs/API.md) | HTTP API 契约（前后端必读，唯一契约来源） |
+| [docs/UI_DESIGN.md](docs/UI_DESIGN.md) | 页面布局与交互设计 |
+| [docs/DEVELOPMENT_RULES.md](docs/DEVELOPMENT_RULES.md) | 开发完整总则与模块边界约束（永久生效） |
+| [docs/context.md](docs/context.md) | 项目背景与现状 |
+| [docs/decisions.md](docs/decisions.md) | 重要技术选型决策记录（ADR） |
+| [docs/pitfalls.md](docs/pitfalls.md) | 非显而易见的坑与绕开姿势 |
+| [docs/conventions.md](docs/conventions.md) | 项目专属约定、命名缩写与技术债 |
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | 本地开发、ffmpeg 构建与部署细节 |
 
 ## 致谢
 

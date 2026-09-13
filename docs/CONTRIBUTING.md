@@ -1,4 +1,4 @@
-# Fn-DanmuTV 弹幕刮削 开发说明
+# FnDanmuTV 弹幕刮削 开发说明
 
 ### 本地构建镜像
 
@@ -28,11 +28,11 @@ EOF
 
 ```bash
 # 单架构
-docker build -t jayvzh/fn-danmutv:latest .
+docker build -t jayvzh/fndanmutv:latest .
 
 # 多架构（amd64 + arm64）并推送到 registry
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -t jayvzh/fn-danmutv:latest --push .
+  -t jayvzh/fndanmutv:latest --push .
 
 # 或直接用 compose 构建本地单架构镜像
 docker compose up -d --build      # 完整版
@@ -88,7 +88,7 @@ frontend/                      Vue 3 + Vuetify 3 SPA
 references/ffmpeg/             静态 ffmpeg/ffprobe（amd64/arm64，不入库，构建前下载，构建时打入镜像）
 Dockerfile                     多阶段构建（Node 构建前端 + python:3.12-slim + 静态 ffmpeg）
 docker-compose.yml             完整版（内置 danmu-api）
-docker-compose.standalone.yml  独立版（仅 DanmuTV，需外部 API）
+docker-compose.standalone.yml  独立版（仅 FnDanmuTV，需外部 API）
 dev.sh                         本地开发环境管理脚本
 ```
 

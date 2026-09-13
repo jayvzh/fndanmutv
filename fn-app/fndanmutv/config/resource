@@ -2,7 +2,7 @@
   "docker-project": {
     "projects": [
       {
-        "name": "danmutv",
+        "name": "fndanmutv",
         "path": "docker"
       }
     ]
@@ -10,7 +10,7 @@
   "data-share": {
     "shares": [
       {
-        "name": "DanmuTV"
+        "name": "fndanmutv"
       }
     ]
   }

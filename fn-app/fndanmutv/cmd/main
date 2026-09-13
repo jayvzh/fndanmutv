@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONTAINER_NAME="fn-danmutv"
+CONTAINER_NAME="fndanmutv"
 
 is_running() {
     docker inspect "$CONTAINER_NAME" 2>/dev/null | grep -q '"Status": "running"'

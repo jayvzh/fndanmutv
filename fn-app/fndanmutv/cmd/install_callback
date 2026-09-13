@@ -35,15 +35,15 @@ APP_PORT="${wizard_port:-}"
 [ -z "${APP_PORT}" ] && APP_PORT=$(load_state app_port)
 [ -z "${APP_PORT}" ] && APP_PORT="8017"
 
-# 访问密码：向导优先，否则已有值，否则默认 danmutv
+# 访问密码：向导优先，否则已有值，否则默认 fndanmutv
 DANMUTV_TOKEN="${wizard_token:-}"
 [ -z "${DANMUTV_TOKEN}" ] && DANMUTV_TOKEN=$(load_state token)
-[ -z "${DANMUTV_TOKEN}" ] && DANMUTV_TOKEN="danmutv"
+[ -z "${DANMUTV_TOKEN}" ] && DANMUTV_TOKEN="fndanmutv"
 
 # 媒体库路径：向导优先，否则已有值，否则默认共享目录
 MEDIA_PATH="${wizard_media_path:-}"
 [ -z "${MEDIA_PATH}" ] && MEDIA_PATH=$(load_state media_path)
-[ -z "${MEDIA_PATH}" ] && MEDIA_PATH="/vol1/@appshare/DanmuTV/media"
+[ -z "${MEDIA_PATH}" ] && MEDIA_PATH="/vol1/@appshare/fndanmutv/media"
 
 # 是否安装内置弹幕API：向导优先，否则已有值，否则默认 true（安装内置）
 INSTALL_BUNDLED="${wizard_install_bundled_api:-}"

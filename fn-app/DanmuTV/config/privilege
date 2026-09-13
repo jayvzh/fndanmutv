@@ -1,8 +1,0 @@
-{
-    "defaults":
-    {
-        "run-as": "package"
-    },
-    "username": "docker-DanmuTV",
-    "groupname": "docker-DanmuTV"
-}

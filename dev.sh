@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DanmuTV 开发环境启动脚本
+# FnDanmuTV 开发环境启动脚本
 # 用法: ./dev.sh {start|stop|restart|status|logs} [backend|frontend]
 set -euo pipefail
 
@@ -233,7 +233,7 @@ stop_process() {
 
 # ── 命令 ──
 cmd_start() {
-    info "=== DanmuTV 开发环境启动 ==="
+    info "=== FnDanmuTV 开发环境启动 ==="
     start_backend || warn "后端未就绪，继续启动前端"
     start_frontend || warn "前端未就绪"
     echo ""
@@ -247,14 +247,14 @@ cmd_start() {
 }
 
 cmd_stop() {
-    info "=== 停止 DanmuTV 开发环境 ==="
+    info "=== 停止 FnDanmuTV 开发环境 ==="
     stop_process "前端" "$FRONTEND_PID_FILE"
     stop_process "后端" "$BACKEND_PID_FILE"
     info "已全部停止"
 }
 
 cmd_restart() {
-    info "=== 重启 DanmuTV 开发环境 ==="
+    info "=== 重启 FnDanmuTV 开发环境 ==="
     # 强制清理端口（跳过确认）
     kill_port "前端" $FRONTEND_PORT; rm -f "$FRONTEND_PID_FILE"
     kill_port "后端" $BACKEND_PORT; rm -f "$BACKEND_PID_FILE"
@@ -265,7 +265,7 @@ cmd_restart() {
 }
 
 cmd_status() {
-    echo -e "${CYAN}=== DanmuTV 服务状态 ===${NC}"
+    echo -e "${CYAN}=== FnDanmuTV 服务状态 ===${NC}"
     echo ""
 
     local bpid=$(get_pid "$BACKEND_PID_FILE")
@@ -310,7 +310,7 @@ case "${1:-}" in
     status)  cmd_status ;;
     logs)    cmd_logs "${2:-all}" ;;
     *)
-        echo "DanmuTV 开发环境管理脚本"
+        echo "FnDanmuTV 开发环境管理脚本"
         echo ""
         echo "用法: ./dev.sh <命令> [backend|frontend]"
         echo ""

@@ -32,15 +32,15 @@ async def lifespan(app: FastAPI):
     app.state.scheduler = scheduler
     scheduler.start(svc)
 
-    logger.info("DanmuTV 后端已启动")
+    logger.info("FnDanmuTV 后端已启动")
     try:
         yield
     finally:
         scheduler.shutdown()
-        logger.info("DanmuTV 后端已关闭")
+        logger.info("FnDanmuTV 后端已关闭")
 
 
-app = FastAPI(title="DanmuTV", lifespan=lifespan)
+app = FastAPI(title="FnDanmuTV", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

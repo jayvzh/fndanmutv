@@ -1,14 +1,14 @@
-# 完整版：fn-danmutv + 内置 danmu-api
+# 完整版：fndanmutv + 内置 danmu-api
 services:
-  danmutv:
+  fndanmutv:
     build: .
-    image: jayvzh/fn-danmutv:latest
-    container_name: fn-danmutv
+    image: jayvzh/fndanmutv:latest
+    container_name: fndanmutv
     restart: unless-stopped
     ports:
       - "8017:8017"
     environment:
-      - DANMUTV_TOKEN=danmutv
+      - DANMUTV_TOKEN=fndanmutv
       - DANMUTV_LOG_LEVEL=INFO
       - DANMUTV_PORT=8017
       - TZ=Asia/Shanghai
@@ -28,6 +28,6 @@ services:
       - "9321:9321"
     environment:
       - TZ=Asia/Shanghai
-      - ADMIN_TOKEN=danmutv
+      - ADMIN_TOKEN=fndanmutv
     volumes:
       - ./danmu-api-data:/data

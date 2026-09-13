@@ -1,7 +1,7 @@
 services:
-  danmutv:
-    image: jayvzh/fn-danmutv:latest
-    container_name: fn-danmutv
+  fndanmutv:
+    image: jayvzh/fndanmutv:latest
+    container_name: fndanmutv
     restart: unless-stopped
     ports:
       - "${APP_PORT}:8017"

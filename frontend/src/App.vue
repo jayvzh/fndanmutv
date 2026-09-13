@@ -38,7 +38,7 @@ import { ref, reactive, shallowRef, onMounted, onBeforeUnmount } from 'vue';
 import Page from './components/Page.vue';
 import Config from './components/Config.vue';
 
-const TOKEN_KEY = 'danmutv_token';
+const TOKEN_KEY = 'fndanmutv_token';
 
 const authed = ref(!!localStorage.getItem(TOKEN_KEY));
 const currentComponent = shallowRef(Page);

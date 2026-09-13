@@ -4,7 +4,7 @@
     "items": [
       {
         "type": "tips",
-        "helpText": "以下设置均为选填，留空将使用默认值。DanmuTV 会将弹幕/合并字幕写回视频同目录，媒体库目录需可读写。若本机已运行弹幕 API（弹弹 play 兼容），可选择“否”不安装内置服务，并填写已有地址。"
+        "helpText": "以下设置均为选填，留空将使用默认值。FnDanmuTV 会将弹幕/合并字幕写回视频同目录，媒体库目录需可读写。若本机已运行弹幕 API（弹弹 play 兼容），可选择“否”不安装内置服务，并填写已有地址。"
       },
       {
         "type": "text",
@@ -21,14 +21,14 @@
       {
         "type": "text",
         "field": "wizard_token",
-        "label": "访问密码（默认 danmutv）",
-        "initValue": "danmutv"
+        "label": "访问密码（默认 fndanmutv）",
+        "initValue": "fndanmutv"
       },
       {
         "type": "text",
         "field": "wizard_media_path",
-        "label": "媒体库路径（默认 /vol1/@appshare/DanmuTV/media）",
-        "initValue": "/vol1/@appshare/DanmuTV/media"
+        "label": "媒体库路径（默认 /vol1/@appshare/fndanmutv/media）",
+        "initValue": "/vol1/@appshare/fndanmutv/media"
       },
       {
         "type": "radio",

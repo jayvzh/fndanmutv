@@ -5,7 +5,7 @@
       <div class="topbar d-flex align-center px-5 py-4">
         <v-icon icon="mdi-television-play" color="primary" size="28" class="mr-3" />
         <div class="topbar-title">
-          DanmuTV
+          FnDanmuTV
           <span class="topbar-subtitle">弹幕刮削影视版</span>
         </div>
         <v-spacer></v-spacer>

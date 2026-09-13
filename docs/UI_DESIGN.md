@@ -1,0 +1,91 @@
+# DanmuTV 界面设计（UI_DESIGN）
+
+> 版本：v1.0 ｜ 描述前端页面结构、交互状态与组件边界。视觉基于 Vuetify 3（Material Design），实现以 [frontend/src/components](../frontend/src/components) 为准。
+
+## 1. 整体框架
+
+- 技术：Vue 3 `<script setup>` + Vuetify 3 + MDI 图标；浅色主题，页面底色 `#F5F7FA`，单张圆角卡片承载全部内容。
+- 根组件 [App.vue](../frontend/src/App.vue)：在 `Page`（主界面）与 `Config`（配置页）两个整页组件间切换；登录态由 localStorage `fndanmutv_token` 决定。
+- 全局通知：右下角 `v-snackbar`，监听 window 事件 `app:notify`（刮削完成 / 失败，6s 自动关闭）；401/403 由 axios 拦截器派发 `auth:unauthorized` 自动登出。
+
+## 2. 登录
+
+- 未登录只可看「仪表盘」Tab，其余 Tab 隐藏。
+- 点顶栏「登录」弹出对话框（标题「管理员登录」）：单个「访问密码」输入框（password，回车提交），失败显示可关闭的 error alert；验证接口 `GET /api/auth/verify`。
+- 已登录顶栏显示「配置」「登出」。
+
+## 3. 主界面 Page.vue
+
+顶栏：`mdi-television-play` 图标 + 「DanmuTV / 弹幕刮削影视版」+ 右侧操作按钮。
+标签栏（`v-tabs grow`）五个 Tab：
+
+| Tab | 组件 | 图标 | 内容 |
+| --- | --- | --- | --- |
+| 仪表盘 | Dashboard.vue | mdi-view-dashboard | 状态、统计、最近运行、刮削进度 |
+| 目录浏览 | BrowseView.vue | mdi-folder | 目录树、手动匹配、发起刮削、清字幕 |
+| 重试任务 | RetryTasks.vue | mdi-alert-circle-outline | 失败任务列表与操作 |
+| 历史记录 | History.vue | mdi-history | 批量/单文件历史分页与详情 |
+| 清理 | Cleanup.vue | mdi-delete-sweep | 孤儿弹幕字幕扫描与删除 |
+
+## 4. 仪表盘（Dashboard.vue）
+
+四个卡片：
+
+1. **插件状态**：自动刮削开关、API 连通状态、媒体库可访问性与路径数；提供跳转到对应 Tab 的入口（`navigate` 事件）。
+2. **统计信息**：媒体库文件总数、已刮削、失败、待重试（数据来自 `/full_status` 的 `stats`）。
+3. **最近运行**：最近运行时间、下次重试时间；无记录显示灰色占位。
+4. **正在刮削中**（仅运行时展示）：进度条 + 成功/失败计数 + 当前文件（`/status` 轮询）。
+
+## 5. 目录浏览（BrowseView.vue，1079 行，最复杂页面）
+
+- 顶部操作区：搜索框「搜索文件/目录」（前端过滤）、刮削按钮（当前目录、增量/全量、递归）、中止按钮、刷新。
+- **目录树**：懒加载——先加载 `/scan_path` 根，展开目录时调 `/scan_subfolder`；目录节点显示 `scrape_status`（总数/已刮削）与 `last_scrape_time`，媒体节点显示弹幕条数 `danmu_count` 与手动匹配标记（图标区分 file / directory 作用域）。
+- 行内操作：单文件刮削、手动匹配、清除字幕（带 `v-dialog` 二次确认，警示色 warning）。
+- **正在刮削中**卡片：运行时置顶显示进度、成功/失败、当前文件。
+- **手动匹配弹幕对话框**：
+  - 「搜索关键字」+「类型」下拉 → `/search_danmu`，结果列表展示作品（标题/类型/集数等）。
+  - 选中作品后选择作用域单选：「仅当前文件 (file)」/「整目录 (directory)」，可填「集数偏移」。
+  - 保存调 `/manual_match`。
+- 空状态：无媒体文件 / 路径未配置的灰色提示。
+
+## 6. 重试任务（RetryTasks.vue）
+
+- 标题「重试任务列表 (N 条)」+ 操作按钮：立即处理（`/process_retry_tasks`）、清空。
+- 列表字段：文件路径、错误类型（彩色 chip：rate_limit/no_match/no_data/network）、错误信息、已重试次数、上次弹幕数、下次重试时间。
+- 行内操作：立即重试、移除；空列表显示「暂无重试任务」。
+
+## 7. 历史记录（History.vue）
+
+- 标题「历史记录 (N 条)」+ 清空按钮（二次确认）。
+- 分页表格：时间、类型（批量/单文件）、路径、处理数/成功/失败、耗时、是否中止；批量行可展开详情（每文件 result/danmu_count/error，需后端返回 details）。
+- 底部分页器（page/page_size，调 `/history`）；空态「暂无历史记录」「无详情」。
+
+## 8. 清理（Cleanup.vue）
+
+- 标题「残留弹幕字幕清理」；「选择扫描路径」下拉（来自配置路径），未配置时红字提示先去配置。
+- 扫描结果列表（复选框多选）：路径、大小、修改时间；全选 / 取消；「删除选中」调 `/clean_orphan_subtitles`（裸数组）。
+- 空态：「没有找到残留弹幕字幕文件」。
+
+## 9. 配置页（Config.vue，独立整页）
+
+四个分区，底部固定保存栏（保存后回主页并刷新状态）：
+
+1. **基本设置**（mdi-tune）
+   - 启用媒体库自动刮削（switch，含功能限制说明）、自动刮削模式（增量/全量单选）、自动扫描间隔(秒)。
+   - 启用 STRM 文件刮削、记录历史详情、启用重试任务（各带灰色说明文字）。
+   - 弹幕 API 地址（带连通性测试按钮，调 `/api_status`）。
+2. **弹幕参数设置**（mdi-video）
+   - 参数方案下拉 + 保存预设 / 管理（对话框输入「方案名称」）。
+   - 字体大小、弹幕显示区域（full/half/third/quarter）、透明度（滑块）、持续时间。
+   - 启用多层弹幕（switch）+ 弹幕层数（2层/3层按钮组）。
+   - 随机顶/底部弹幕（switch）+ 顶部比例 / 底部比例。
+   - 弹幕密度条数（0 全部 / 3000 / 5000 / 8000）、弹幕宽度扩展。
+3. **媒体库路径**（mdi-folder）：多行文本域（换行分隔多路径）。
+4. 保存：`POST /config` 裸 dict；成功 snackbar 提示，后端动态重排定时任务。
+
+## 10. 交互与状态约定
+
+- 所有异步按钮使用 `:loading` 防重复提交；危险操作（清空、删除）必须 `v-dialog` 二次确认。
+- 刮削进行中：仪表盘与目录浏览页轮询状态并展示当前文件；全局只有一个批量任务，重复发起由后端拒绝并提示。
+- 轮询节奏由各组件自行管理（进入页面启动、离开/可见性变化时清理定时器）。
+- 文案与 chip 颜色：成功 success（绿）、失败/错误 error（红）、限流/警告 warning（橙）、中性 grey。
