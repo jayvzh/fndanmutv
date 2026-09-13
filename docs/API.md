@@ -100,14 +100,17 @@
   "children": [], "manual_match": null, "manual_scope": "directory",
   "directory_path": "/media/电影",
   "scrape_status": { "total_files": 12, "scraped_files": 10 },
-  "last_scrape_time": "2026-09-13 10:00:00" }
+  "last_scrape_time": "2026-09-13 10:00:00",
+  "mtime": 1789341861.5 }
 // 媒体节点
 { "name": "Show.S01E01.mkv", "path": "/media/Show.S01E01.mkv", "type": "media",
   "children": [], "manual_match": {}, "manual_scope": "file",
-  "directory_path": "/media", "danmu_count": 1234 }
+  "directory_path": "/media", "danmu_count": 1234, "mtime": 1789341861.5 }
 // 多路径虚拟根
 { "name": "根目录", "path": "", "type": "root", "is_root": true, "children": [] }
 ```
+
+目录/媒体节点的 `mtime` 为文件系统修改时间（Unix 秒，float），取不到时为 `null`；同级条目按名称排序返回（目录在前、媒体在后），前端可按 `mtime` 自行重排。
 
 `/directory_stats` 的 `data`（key 为入参路径）：
 

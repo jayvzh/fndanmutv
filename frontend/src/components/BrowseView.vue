@@ -60,6 +60,35 @@
       >
         刷新
       </v-btn>
+      <v-menu>
+        <template #activator="{ props }">
+          <v-btn
+            color="primary"
+            variant="tonal"
+            prepend-icon="mdi-sort"
+            class="tonal-bordered ml-auto"
+            v-bind="props"
+          >
+            {{ sortButtonLabel }}
+          </v-btn>
+        </template>
+        <v-list density="comfortable">
+          <v-list-item
+            v-for="opt in sortOptions"
+            :key="opt.key"
+            :active="sortBy === opt.field && sortDir === opt.dir"
+            @click="selectSort(opt)"
+          >
+            <template #prepend>
+              <v-icon
+                :icon="sortBy === opt.field && sortDir === opt.dir ? 'mdi-check' : 'mdi-check-blank'"
+                size="18"
+              ></v-icon>
+            </template>
+            <v-list-item-title class="text-body-2">{{ opt.label }}</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
     </div>
 
     <v-row>
@@ -483,6 +512,26 @@ function persistBrowse() {
 const searchKeyword = ref('');
 const scanningStats = ref(false);
 
+// 排序：目录组在前、文件组在后，两组分别应用同一排序；默认修改时间新→旧
+const sortBy = ref('mtime'); // 'name' | 'natural' | 'mtime'
+const sortDir = ref('desc'); // 'asc' | 'desc'
+const sortOptions = [
+  { key: 'name-asc', field: 'name', dir: 'asc', label: '文件名 正序' },
+  { key: 'name-desc', field: 'name', dir: 'desc', label: '文件名 倒序' },
+  { key: 'natural-asc', field: 'natural', dir: 'asc', label: '自然排序 正序' },
+  { key: 'natural-desc', field: 'natural', dir: 'desc', label: '自然排序 倒序' },
+  { key: 'mtime-desc', field: 'mtime', dir: 'desc', label: '修改时间 新→旧' },
+  { key: 'mtime-asc', field: 'mtime', dir: 'asc', label: '修改时间 旧→新' },
+];
+const sortButtonLabel = computed(() => {
+  const cur = sortOptions.find((o) => o.field === sortBy.value && o.dir === sortDir.value);
+  return cur ? `排序：${cur.label}` : '排序';
+});
+function selectSort(opt) {
+  sortBy.value = opt.field;
+  sortDir.value = opt.dir;
+}
+
 // 分页：每页 20 项；目录的视频/弹幕数量需向后端递归统计，仅对当前页可见目录懒加载
 const PAGE_SIZE = 20;
 const currentPage = ref(1);
@@ -515,19 +564,40 @@ const manualExistingMatch = computed(() => manualTargetItem.value?.manual_match 
 const manualExistingScope = computed(() => manualExistingMatch.value?.scope || null);
 const manualExistingOffset = computed(() => Number(manualExistingMatch.value?.episodeOffset) || 0);
 
+const compareByName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+
+const compareItems = (a, b) => {
+  let r = 0;
+  if (sortBy.value === 'mtime') {
+    // mtime 缺失（旧缓存/取不到）排最后
+    const am = a.mtime ?? -Infinity;
+    const bm = b.mtime ?? -Infinity;
+    r = am - bm;
+  } else if (sortBy.value === 'natural') {
+    r = a.name.localeCompare(b.name, undefined, { numeric: true });
+  } else {
+    r = compareByName(a, b);
+  }
+  return sortDir.value === 'asc' ? r : -r;
+};
+
 const filteredItems = computed(() => {
-  if (!directoryContent.value || !directoryContent.value.children) {
+  const children = directoryContent.value?.children;
+  if (!children) {
     return [];
   }
-  
+
+  // filter 产生新数组，sort 不会影响原 children（缓存）顺序
+  const dirs = children.filter((item) => item.type === 'directory').sort(compareItems);
+  const files = children.filter((item) => item.type !== 'directory').sort(compareItems);
+  const items = [...dirs, ...files];
+
   if (!searchKeyword.value) {
-    return directoryContent.value.children;
+    return items;
   }
-  
+
   const keyword = searchKeyword.value.toLowerCase();
-  return directoryContent.value.children.filter(item => {
-    return item.name.toLowerCase().includes(keyword);
-  });
+  return items.filter((item) => item.name.toLowerCase().includes(keyword));
 });
 
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / PAGE_SIZE)));
@@ -584,6 +654,10 @@ async function ensureVisibleStats() {
 }
 
 watch(searchKeyword, () => {
+  currentPage.value = 1;
+});
+
+watch([sortBy, sortDir], () => {
   currentPage.value = 1;
 });
 

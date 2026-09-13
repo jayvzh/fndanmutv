@@ -106,6 +106,14 @@ def _directory_recursive_stats(svc, directory_path: str, max_depth: int = 4,
     return {"total_files": total_files, "scraped_files": scraped_files}
 
 
+def _entry_mtime(entry) -> Optional[float]:
+    """条目修改时间（秒级时间戳），取不到时为 None（前端排最后）"""
+    try:
+        return entry.stat().st_mtime
+    except OSError:
+        return None
+
+
 def scan_current_directory(svc, path: str, is_root: bool = False,
                            min_danmu_count: int = 100,
                            enable_strm: bool = True,
@@ -168,6 +176,7 @@ def scan_current_directory(svc, path: str, is_root: bool = False,
                 "path": entry.path,
                 "type": "directory",
                 "children": [],
+                "mtime": _entry_mtime(entry),
             }
             mm = _manual_match(svc, entry.path, "directory")
             child["manual_match"] = mm
@@ -195,6 +204,7 @@ def scan_current_directory(svc, path: str, is_root: bool = False,
                 "path": entry.path,
                 "type": "media",
                 "children": [],
+                "mtime": _entry_mtime(entry),
             }
             file_manual = _manual_match(svc, entry.path, "file")
             if file_manual:
