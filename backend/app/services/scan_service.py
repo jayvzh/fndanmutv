@@ -285,6 +285,13 @@ def scan_path(svc, path: Optional[str] = None, current_dir: Optional[str] = None
     )
 
 
+def _within_library(child: str, root: str) -> bool:
+    """child 等于 root 或位于 root 之下（按绝对路径比较，防止 ../ 与末尾斜杠绕过）"""
+    child_abs = os.path.abspath(child)
+    root_abs = os.path.abspath(root)
+    return child_abs == root_abs or child_abs.startswith(root_abs + os.sep)
+
+
 def scan_subfolder(svc, subfolder_path: Optional[str] = None,
                    configured_path: str = "", min_danmu_count: int = 100,
                    enable_strm: bool = True,
@@ -295,10 +302,11 @@ def scan_subfolder(svc, subfolder_path: Optional[str] = None,
         return ApiResponse.fail("文件夹不存在")
     if not os.path.isdir(subfolder_path):
         return ApiResponse.fail("指定路径不是文件夹")
-    is_root = False
-    if configured_path:
-        roots = [p.strip() for p in configured_path.split("\n") if p.strip()]
-        is_root = subfolder_path in roots
+    roots = [p.strip() for p in configured_path.split("\n") if p.strip()] if configured_path else []
+    # 目录浏览只允许媒体库配置范围内（含库根本身），防止“返回上级”越界
+    if roots and not any(_within_library(subfolder_path, root) for root in roots):
+        return ApiResponse.fail("路径不在媒体库配置范围内")
+    is_root = subfolder_path in roots
     data = scan_current_directory(svc, subfolder_path, is_root=is_root,
                                   min_danmu_count=min_danmu_count,
                                   enable_strm=enable_strm,

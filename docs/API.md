@@ -86,7 +86,7 @@
 | 方法 | 路径 | 参数 | 说明 |
 | --- | --- | --- | --- |
 | GET | `/scan_path` | `path?`、`current_dir?`、`include_child_stats?`(默认 true) | 根目录树 / 指定目录；`current_dir` 等价子目录展开；无参取配置路径（多路径包虚拟根节点） |
-| GET | `/scan_subfolder` | `subfolder_path`（必填）、`include_child_stats?`(默认 true) | 展开某子目录 |
+| GET | `/scan_subfolder` | `subfolder_path`（必填）、`include_child_stats?`(默认 true) | 展开某子目录；路径必须位于配置的媒体库范围（含库根）内，否则 `success:false`（`路径不在媒体库配置范围内`） |
 | GET | `/directory_stats` | `path`（必填，多目录换行分隔） | 批量取目录递归统计（深 4 层），供目录浏览按当前页懒加载；非目录返回全 0 |
 | GET | `/scan_directory_stats` | `directory_path?` | 递归统计（深 6 层）并落目录记录（含 `stats_updated_at` 统计时间戳）；缺省时扫描全部配置媒体库目录 |
 

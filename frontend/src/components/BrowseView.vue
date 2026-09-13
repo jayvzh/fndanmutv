@@ -787,6 +787,11 @@ async function navigateToPath(path, force = false) {
         }
       } else {
         error.value = data?.message || '加载目录失败';
+        // 越界路径（如旧版“返回上级”残留的 lastPath）自动回退媒体库列表
+        if (path && (data?.message || '').includes('媒体库')) {
+          error.value = null;
+          await navigateToPath('');
+        }
       }
     }
   } catch (err) {
@@ -804,14 +809,28 @@ function refreshCurrentDir() {
   navigateToPath(currentPath.value, true);
 }
 
+// 媒体库根路径列表：来自根视图缓存（多库 = 各库目录；单库 = 库根本身）
+function getLibraryRoots() {
+  const rootContent = dirCache['__root__']?.content;
+  if (!rootContent) return [];
+  if (rootContent.type === 'root') {
+    return (rootContent.children || []).map((c) => c.path).filter(Boolean);
+  }
+  return rootContent.path ? [rootContent.path] : [];
+}
+
 function goBack() {
   if (!currentPath.value) return;
-  
+
   if (directoryContent.value?.is_root) {
     navigateToPath('');
   } else {
     const parentPath = currentPath.value.split('/').slice(0, -1).join('/');
-    navigateToPath(parentPath || '');
+    const roots = getLibraryRoots();
+    // 父路径不在媒体库范围内时直接回媒体库列表（后端同样会拒绝越界路径）
+    const within = roots.length === 0
+      || roots.some((root) => parentPath === root || parentPath.startsWith(`${root}/`));
+    navigateToPath(within ? parentPath : '');
   }
 }
 
