@@ -1,13 +1,15 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-4 flex-wrap gap-2">
+    <div class="d-flex align-center mb-4 flex-wrap ga-2">
       <v-icon icon="mdi-alert-circle-outline" color="warning" size="22" class="mr-2"></v-icon>
       <span class="section-title-text">重试任务列表</span>
       <span class="text-grey ml-2">({{ total }} 条)</span>
       <v-spacer></v-spacer>
-      <div class="d-flex align-center flex-wrap ga-2">
+      <div class="d-flex align-center ga-2 retry-chips">
         <v-chip v-if="minDanmuCount" variant="tonal" color="grey" size="small">最小弹幕: {{ minDanmuCount }}</v-chip>
         <v-chip v-if="maxRetryTimes" variant="tonal" color="grey" size="small">最大重试: {{ maxRetryTimes }}</v-chip>
+      </div>
+      <div class="d-flex align-center ga-2 retry-action-btns">
         <v-btn color="primary" variant="tonal" prepend-icon="mdi-refresh" :loading="actionLoading.processAll" @click="processAll">
           全部重试
         </v-btn>
@@ -16,17 +18,6 @@
         </v-btn>
       </div>
     </div>
-
-    <v-alert
-      v-if="message.text"
-      :type="message.type"
-      variant="tonal"
-      dismissible
-      class="mb-4"
-      @click:close="message.text = ''"
-    >
-      {{ message.text }}
-    </v-alert>
 
     <v-data-table
       :headers="headers"
@@ -102,19 +93,9 @@ const actionLoading = reactive({
   processAll: false,
   clearAll: false
 })
-const message = reactive({
-  text: '',
-  type: 'success'
-})
-let messageTimer = null
-
-const showMessage = (text, type = 'success') => {
-  message.text = text
-  message.type = type
-  if (messageTimer) clearTimeout(messageTimer)
-  messageTimer = setTimeout(() => {
-    message.text = ''
-  }, 4000)
+// 全局右下角通知（复用 App.vue 的 app:notify），替代原页内 v-alert
+const notify = (title, text, type = 'success') => {
+  window.dispatchEvent(new CustomEvent('app:notify', { detail: { type, title, text } }))
 }
 
 const headers = [
@@ -149,14 +130,14 @@ const processAll = async () => {
   try {
     const res = await api.get('/process_retry_tasks')
     if (res && res.success) {
-      showMessage(res.message || '全部重试任务已启动', 'success')
+      notify('全部重试', res.message || '全部重试任务已启动', 'success')
     } else {
-      showMessage(res?.message || '全部重试失败', 'error')
+      notify('全部重试失败', res?.message || '请稍后重试', 'error')
     }
     await fetchTasks()
   } catch (error) {
     console.error('处理重试任务失败:', error)
-    showMessage('全部重试失败，请检查网络或API', 'error')
+    notify('全部重试失败', '请检查网络或API', 'error')
   } finally {
     actionLoading.processAll = false
   }
@@ -167,14 +148,14 @@ const clearAll = async () => {
   try {
     const res = await api.get('/clear_retry_tasks')
     if (res && res.success) {
-      showMessage(res.message || '已清空全部重试任务', 'success')
+      notify('清空完成', res.message || '已清空全部重试任务', 'success')
     } else {
-      showMessage(res?.message || '清空失败', 'error')
+      notify('清空失败', res?.message || '请稍后重试', 'error')
     }
     await fetchTasks()
   } catch (error) {
     console.error('清空重试任务失败:', error)
-    showMessage('清空失败，请检查网络或API', 'error')
+    notify('清空失败', '请检查网络或API', 'error')
   } finally {
     actionLoading.clearAll = false
   }
@@ -187,14 +168,14 @@ const retrySingle = async (filePath) => {
       params: { file_path: filePath }
     })
     if (res && res.success) {
-      showMessage(res.message || `已重试：${getFileName(filePath)}`, 'success')
+      notify('重试成功', res.message || `已重试：${getFileName(filePath)}`, 'success')
     } else {
-      showMessage(res?.message || '重试失败', 'error')
+      notify('重试失败', res?.message || '请稍后重试', 'error')
     }
     await fetchTasks()
   } catch (error) {
     console.error('重试单个任务失败:', error)
-    showMessage('重试失败，请检查网络或API', 'error')
+    notify('重试失败', '请检查网络或API', 'error')
   } finally {
     delete actionLoading['retry_' + filePath]
   }
@@ -207,14 +188,14 @@ const removeSingle = async (filePath) => {
       params: { file_path: filePath }
     })
     if (res && res.success) {
-      showMessage(res.message || `已移除：${getFileName(filePath)}`, 'success')
+      notify('移除成功', res.message || `已移除：${getFileName(filePath)}`, 'success')
     } else {
-      showMessage(res?.message || '移除失败', 'error')
+      notify('移除失败', res?.message || '请稍后重试', 'error')
     }
     await fetchTasks()
   } catch (error) {
     console.error('移除重试任务失败:', error)
-    showMessage('移除失败，请检查网络或API', 'error')
+    notify('移除失败', '请检查网络或API', 'error')
   } finally {
     delete actionLoading['remove_' + filePath]
   }
@@ -287,5 +268,20 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+/* 移动端（<600px）：按钮组独占一行，「全部重试」前换行，两行均居中 */
+@media (max-width: 599.98px) {
+  .retry-action-btns {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  /* chips 独占一行且保持一行不拆分 */
+  .retry-chips {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    justify-content: center;
+  }
 }
 </style>

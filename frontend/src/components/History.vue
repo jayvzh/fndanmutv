@@ -134,8 +134,15 @@ const clearHistory = async () => {
   try {
     await api.post('/clear_history')
     await fetchHistory()
+    // 清空结果改为右下角通知（复用全局 app:notify）
+    window.dispatchEvent(new CustomEvent('app:notify', {
+      detail: { type: 'success', title: '清空完成', text: '已清空全部历史记录' }
+    }))
   } catch (error) {
     console.error('清空历史记录失败:', error)
+    window.dispatchEvent(new CustomEvent('app:notify', {
+      detail: { type: 'error', title: '清空失败', text: '请检查网络或API' }
+    }))
   }
 }
 

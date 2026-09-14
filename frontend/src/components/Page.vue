@@ -248,4 +248,11 @@ const doLogin = async () => {
   text-transform: none;
   letter-spacing: normal;
 }
+
+/* 移动端（<600px）：顶栏只保留 FnDanmuTV，隐藏中文副标题 */
+@media (max-width: 599.98px) {
+  .topbar-subtitle {
+    display: none;
+  }
+}
 </style>

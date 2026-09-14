@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-4 flex-wrap gap-2">
+    <div class="d-flex align-center mb-4 flex-wrap ga-2">
       <v-icon icon="mdi-delete-sweep" color="error" size="22" class="mr-2"></v-icon>
       <span
         class="section-title-text"
@@ -17,22 +17,21 @@
         density="compact"
         multiple
         :menu-props="{ contentClass: 'compact-select-menu' }"
-        class="cleanup-select ml-4"
+        class="cleanup-select"
         style="max-width: 360px"
         @update:model-value="handlePathChange"
       ></v-select>
       <span v-if="!scanPaths.length" class="text-error text-body-2">请先在配置中设置媒体库路径</span>
       <v-spacer></v-spacer>
-      <div class="d-flex align-center flex-wrap ga-2">
-        <v-chip v-if="cleanedCount > 0" variant="tonal" color="success" size="small">已清理: {{ cleanedCount }} 个</v-chip>
+      <div class="d-flex align-center flex-wrap ga-2 cleanup-actions">
         <v-btn color="primary" variant="tonal" prepend-icon="mdi-radar" @click="scanOrphanSubtitles" :loading="scanning" :disabled="!scanPaths.length">
-          扫描残留
+          <span class="d-none d-sm-inline">扫描残留</span><span class="d-sm-none">扫描</span>
         </v-btn>
         <v-btn color="error" variant="tonal" prepend-icon="mdi-delete" @click="cleanSelected" :disabled="!selectedPaths.length" :loading="cleaning">
-          清理选中 ({{ selectedPaths.length }})
+          <span class="d-none d-sm-inline">清理选中 ({{ selectedPaths.length }})</span><span class="d-sm-none">清已选</span>
         </v-btn>
         <v-btn color="error" variant="tonal" prepend-icon="mdi-delete-forever" @click="cleanAll" :disabled="!orphanSubtitles.length" :loading="cleaning">
-          全部删除
+          <span class="d-none d-sm-inline">全部删除</span><span class="d-sm-none">全删</span>
         </v-btn>
       </div>
     </div>
@@ -165,6 +164,14 @@ const scanOrphanSubtitles = async () => {
     if (data && data.success) {
       orphanSubtitles.value = data.data.orphan_subtitles || []
       totalFound.value = data.data.total_found || 0
+      // 扫描结果改为右下角通知（复用全局 app:notify；>0 为成功，0 个为中性信息）
+      window.dispatchEvent(new CustomEvent('app:notify', {
+        detail: {
+          type: totalFound.value > 0 ? 'success' : 'info',
+          title: '扫描完成',
+          text: totalFound.value > 0 ? `扫描到 ${totalFound.value} 个残留弹幕字幕文件` : '未扫描到残留弹幕字幕文件',
+        }
+      }))
     }
   } catch (error) {
     console.error('扫描残留弹幕失败:', error)
@@ -212,6 +219,10 @@ const cleanSelected = async () => {
       orphanSubtitles.value = orphanSubtitles.value.filter(item => !selectedPaths.value.includes(item.path))
       totalFound.value = orphanSubtitles.value.length
       selectedPaths.value = []
+      // 删除结果改为右下角通知（复用全局 app:notify）
+      window.dispatchEvent(new CustomEvent('app:notify', {
+        detail: { success: true, title: '清理完成', text: `本次删除 ${data.data.cleaned_count || 0} 个残留字幕文件` }
+      }))
     }
   } catch (error) {
     console.error('清理选中字幕失败:', error)
@@ -234,6 +245,10 @@ const cleanAll = async () => {
       orphanSubtitles.value = []
       totalFound.value = 0
       selectedPaths.value = []
+      // 删除结果改为右下角通知（复用全局 app:notify）
+      window.dispatchEvent(new CustomEvent('app:notify', {
+        detail: { success: true, title: '清理完成', text: `本次删除 ${data.data.cleaned_count || 0} 个残留字幕文件` }
+      }))
     }
   } catch (error) {
     console.error('清理所有字幕失败:', error)
@@ -278,6 +293,25 @@ onMounted(() => {
   font-size: 1.1rem;
   font-weight: 600;
   line-height: 1.2;
+}
+
+.cleanup-select {
+  margin-left: 16px; /* 替代原 ml-4，便于移动端归零 */
+}
+
+/* 移动端（<600px）：下拉独占一行与标题留距，按钮组独占一行保持间距 */
+@media (max-width: 599.98px) {
+  .cleanup-select {
+    flex: 1 1 100%;
+    margin-left: 0;
+    margin-top: 12px;
+    max-width: 100%;
+  }
+
+  .cleanup-actions {
+    flex: 1 1 100%;
+    margin-top: 12px;
+  }
 }
 
 .cleanup-select :deep(.v-select__selection-text),

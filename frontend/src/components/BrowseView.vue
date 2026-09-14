@@ -18,7 +18,7 @@
         ></v-text-field>
       </v-col>
     </v-row>
-    <div class="d-flex flex-wrap ga-2 mb-4">
+    <div class="d-flex flex-wrap ga-2 mb-4 browse-toolbar">
       <v-btn
         color="primary"
         variant="flat"
@@ -27,7 +27,7 @@
         :disabled="scrapingStatus.running"
         @click="scrapeCurrentDirectory"
       >
-        刮削本目录
+        <span class="d-none d-sm-inline">刮削本目录</span><span class="d-sm-none">刮削</span>
       </v-btn>
       <v-btn
         color="info"
@@ -38,7 +38,7 @@
         :disabled="scanningStats"
         @click="scanDirectoryStats"
       >
-        {{ currentPath ? '扫描统计' : '扫描统计全部库' }}
+        <span class="d-none d-sm-inline">{{ currentPath ? '扫描统计' : '扫描统计全部库' }}</span><span class="d-sm-none">扫描</span>
       </v-btn>
       <v-btn
         color="warning"
@@ -49,8 +49,10 @@
         :disabled="scrapingStatus.running"
         @click="cleanCurrentDirectorySubtitles"
       >
-        清理字幕
+        <span class="d-none d-sm-inline">清理字幕</span><span class="d-sm-none">清理</span>
       </v-btn>
+      <!-- 移动端换行点：刷新/排序独占一行 -->
+      <div class="toolbar-break" aria-hidden="true"></div>
       <v-btn
         color="primary"
         variant="tonal"
@@ -60,16 +62,17 @@
       >
         刷新
       </v-btn>
-      <v-menu>
+      <v-menu :menu-props="{ contentClass: 'sort-menu-content' }">
         <template #activator="{ props }">
           <v-btn
             color="primary"
             variant="tonal"
             prepend-icon="mdi-sort"
-            class="tonal-bordered ml-auto"
+            :append-icon="sortDir === 'asc' ? 'mdi-arrow-up' : 'mdi-arrow-down'"
+            class="tonal-bordered ml-auto browse-sort-btn"
             v-bind="props"
           >
-            {{ sortButtonLabel }}
+            排序
           </v-btn>
         </template>
         <v-list density="comfortable">
@@ -523,10 +526,6 @@ const sortOptions = [
   { key: 'mtime-desc', field: 'mtime', dir: 'desc', label: '修改时间 新→旧' },
   { key: 'mtime-asc', field: 'mtime', dir: 'asc', label: '修改时间 旧→新' },
 ];
-const sortButtonLabel = computed(() => {
-  const cur = sortOptions.find((o) => o.field === sortBy.value && o.dir === sortDir.value);
-  return cur ? `排序：${cur.label}` : '排序';
-});
 function selectSort(opt) {
   sortBy.value = opt.field;
   sortDir.value = opt.dir;
@@ -1127,7 +1126,7 @@ function startStatusPolling() {
       // 全局通知：不论是否切换页面都弹出
       window.dispatchEvent(new CustomEvent('app:notify', {
         detail: {
-          success: failed === 0,
+          type: failed === 0 ? 'success' : 'warning',
           title: failed === 0 ? '批量刮削完成' : '批量刮削完成（存在失败）',
           text: `共 ${total} 个文件，成功 ${success}，失败 ${failed}`,
         },
@@ -1323,8 +1322,36 @@ onUnmounted(() => {
   animation: spin 1s linear infinite;
 }
 
+.toolbar-break {
+  display: none;
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* 移动端（<600px）：前三个按钮一行居中，刷新/排序换行一行居中 */
+@media (max-width: 599.98px) {
+  .browse-toolbar {
+    justify-content: center;
+  }
+
+  .toolbar-break {
+    display: block;
+    flex: 1 1 100%;
+  }
+
+  .browse-sort-btn {
+    margin-left: 0 !important;
+  }
+}
+</style>
+
+<style>
+/* 排序下拉菜单：大圆角（菜单内容 teleport 到 body，需全局样式） */
+.sort-menu-content {
+  border-radius: 18px;
+  overflow: hidden;
 }
 </style>

@@ -65,20 +65,28 @@ const handleUnauthorized = () => {
 };
 
 // ── 全局通知 ──
+// 语义色：success 绿=操作成功；error 红=操作失败；warning 橙=警示（如结果为空）；info 蓝=中性信息
+const NOTIFY_TYPES = {
+  success: 'mdi-check-circle',
+  error: 'mdi-alert-circle',
+  warning: 'mdi-alert',
+  info: 'mdi-information',
+};
+
 const notify = reactive({
   visible: false,
   color: 'success',
-  icon: 'mdi-check-circle',
+  icon: NOTIFY_TYPES.success,
   title: '',
   text: '',
 });
 
 const showNotify = (e) => {
   const detail = e.detail || {};
-  const success = detail.success !== false;
-  notify.color = success ? 'success' : 'error';
-  notify.icon = success ? 'mdi-check-circle' : 'mdi-alert-circle';
-  notify.title = detail.title || (success ? '刮削完成' : '刮削失败');
+  const type = NOTIFY_TYPES[detail.type] ? detail.type : (detail.success === false ? 'error' : 'success');
+  notify.color = type;
+  notify.icon = NOTIFY_TYPES[type];
+  notify.title = detail.title || (type === 'error' ? '操作失败' : '操作成功');
   notify.text = detail.text || '';
   notify.visible = true;
 };

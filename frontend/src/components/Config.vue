@@ -14,7 +14,9 @@
         </v-btn>
         <v-spacer></v-spacer>
         <v-icon icon="mdi-cog" color="primary" size="24" class="mr-2" />
-        <div class="topbar-title">FnDanmuTV 配置</div>
+        <div class="topbar-title">
+          <span class="d-none d-sm-inline">FnDanmuTV 配置</span><span class="d-sm-none">设置</span>
+        </div>
         <v-spacer></v-spacer>
         <v-btn
           color="secondary"
